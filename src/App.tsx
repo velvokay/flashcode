@@ -120,19 +120,19 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
         <div className="hero-content">
           <h1>
             {due.length > 0
-              ? `${due.length} ${due.length === 1 ? "question" : "questions"} due`
+              ? `${due.length} due`
               : "Nothing due"}
           </h1>
-          <p className="lede">
-            {due.length > 0
-              ? "Review them in order of urgency."
-              : nextDue
+          {due.length === 0 && (
+            <p className="lede">
+              {nextDue
                 ? `Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
                 : "Add a question to begin."}
-          </p>
+            </p>
+          )}
           <div className="hero-action">
             <button className="primary-button" onClick={onStart} disabled={due.length === 0}>
-              <span>{due.length > 0 ? "Start review" : "Done for today"}</span>
+              <span>{due.length > 0 ? "Begin" : "Done for today"}</span>
               {due.length > 0 && <Icon name="arrow" />}
             </button>
             {due.length > 0 && <span className="time-note">~{Math.max(5, due.length * 3)} min</span>}
