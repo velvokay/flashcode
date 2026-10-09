@@ -11,6 +11,7 @@ export function createInitialData(now = new Date()): AppData {
       seedQuestions.map((question) => [question.id, createReviewState(question.id, now)]),
     ),
     history: [],
+    drafts: {},
   };
 }
 
@@ -26,7 +27,7 @@ export function loadData(): AppData {
       return createInitialData();
     }
 
-    return parsed;
+    return { ...parsed, drafts: parsed.drafts ?? {} };
   } catch {
     return createInitialData();
   }

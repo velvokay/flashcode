@@ -2,6 +2,13 @@ export type Difficulty = "Easy" | "Medium" | "Hard";
 
 export type Rating = "again" | "hard" | "good" | "easy";
 
+export type CodeLanguage = "typescript" | "javascript" | "python" | "cpp" | "java";
+
+export interface CodeDraft {
+  language: CodeLanguage;
+  code: string;
+}
+
 export interface Question {
   id: string;
   code: string;
@@ -38,4 +45,5 @@ export interface AppData {
   questions: Question[];
   reviews: Record<string, ReviewState>;
   history: ReviewEvent[];
+  drafts: Record<string, CodeDraft>;
 }

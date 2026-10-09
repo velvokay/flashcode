@@ -7,7 +7,7 @@ import {
   previewSchedule,
 } from "./lib/scheduler";
 import { clearData, createInitialData, loadData, saveData } from "./lib/storage";
-import type { AppData, Difficulty, Question, Rating } from "./types";
+import type { AppData, CodeDraft, CodeLanguage, Difficulty, Question, Rating } from "./types";
 
 type View = "today" | "library" | "review";
 
@@ -20,7 +20,7 @@ const ratingLabels: Record<Rating, string> = {
 
 function Icon({ name, size = 18 }: { name: "arrow" | "external" | "plus" | "search" | "x"; size?: number }) {
   const paths = {
-    arrow: <path d="m5 12 7-7 7 7M12 5v14" />,
+    arrow: <path d="m13 5 7 7-7 7M20 12H4" />,
     external: <path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
@@ -117,23 +117,25 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
           <span className="eyebrow">TODAY</span>
           <time>{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</time>
         </div>
-        <div className="hero-grid">
-          <div>
-            <h1>{due.length > 0 ? `${due.length} due` : "Route clear"}</h1>
-            <p className="lede">
-              {due.length > 0
-                ? "A focused set of questions, ordered by what needs attention now."
-                : nextDue
-                  ? `Nothing else is due. Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
-                  : "Your library is ready when you are."}
-            </p>
-          </div>
+        <div className="hero-content">
+          <h1>
+            {due.length > 0
+              ? `${due.length} ${due.length === 1 ? "question" : "questions"} due`
+              : "Nothing due"}
+          </h1>
+          <p className="lede">
+            {due.length > 0
+              ? "Review them in order of urgency."
+              : nextDue
+                ? `Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
+                : "Add a question to begin."}
+          </p>
           <div className="hero-action">
             <button className="primary-button" onClick={onStart} disabled={due.length === 0}>
               <span>{due.length > 0 ? "Start review" : "Done for today"}</span>
               {due.length > 0 && <Icon name="arrow" />}
             </button>
-            {due.length > 0 && <span className="time-note">About {Math.max(5, due.length * 3)} minutes</span>}
+            {due.length > 0 && <span className="time-note">~{Math.max(5, due.length * 3)} min</span>}
           </div>
         </div>
       </section>
@@ -157,7 +159,9 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
             <span className="eyebrow">QUEUE</span>
             <h2>{due.length > 0 ? "Next questions" : "Upcoming"}</h2>
           </div>
-          <span className="section-count">{due.length || data.questions.length} questions</span>
+          <span className="section-count">
+            {due.length || data.questions.length} {(due.length || data.questions.length) === 1 ? "question" : "questions"}
+          </span>
         </div>
         <div className="question-list">
           {(due.length > 0 ? due : data.questions.slice(0, 5)).slice(0, 5).map((question, index) => (
@@ -196,20 +200,58 @@ function ProgressRail({ total, current }: { total: number; current: number }) {
   );
 }
 
+function CodeWorkspace({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const [scrollTop, setScrollTop] = useState(0);
+  const lineCount = Math.max(24, value.split("\n").length);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Tab") return;
+    event.preventDefault();
+    const target = event.currentTarget;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    const next = `${value.slice(0, start)}  ${value.slice(end)}`;
+    onChange(next);
+    requestAnimationFrame(() => {
+      target.selectionStart = target.selectionEnd = start + 2;
+    });
+  };
+
+  return (
+    <div className="code-editor">
+      <pre className="line-numbers" aria-hidden="true" style={{ transform: `translateY(-${scrollTop}px)` }}>
+        {Array.from({ length: lineCount }, (_, index) => index + 1).join("\n")}
+      </pre>
+      <textarea
+        aria-label="Code editor"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={handleKeyDown}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        placeholder="Write your solution here…"
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+      />
+    </div>
+  );
+}
+
 function ReviewSession({
   data,
   queue,
   onRate,
   onFinish,
+  onSaveDraft,
 }: {
   data: AppData;
   queue: string[];
   onRate: (questionId: string, rating: Rating) => void;
   onFinish: () => void;
+  onSaveDraft: (questionId: string, draft: CodeDraft) => void;
 }) {
   const [current, setCurrent] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [scratch, setScratch] = useState("");
   const question = data.questions.find((item) => item.id === queue[current]);
   const finished = current >= queue.length || !question;
 
@@ -217,7 +259,6 @@ function ReviewSession({
     if (!revealed || !question) return;
     onRate(question.id, rating);
     setRevealed(false);
-    setScratch("");
     setCurrent((value) => value + 1);
     window.scrollTo({ top: 0, behavior: "auto" });
   };
@@ -270,6 +311,7 @@ function ReviewSession({
   }
 
   const reviewState = data.reviews[question.id];
+  const draft = data.drafts[question.id] ?? { language: "typescript", code: "" };
   const ratings: Rating[] = ["again", "hard", "good", "easy"];
 
   return (
@@ -277,39 +319,59 @@ function ReviewSession({
       <ProgressRail total={queue.length} current={current} />
       <article className="review-card">
         <div className="focus-edge" aria-hidden="true" />
-        <div className="question-meta">
-          <span className="question-code">{question.code}</span>
-          <span>{question.topic}</span>
-          <span>{question.difficulty}</span>
-        </div>
-        <div className="question-copy">
-          <h1>{question.title}</h1>
-          <p>{question.prompt}</p>
-        </div>
-        <a className="external-link" href={question.url} target="_blank" rel="noreferrer">
-          Open original problem <Icon name="external" size={16} />
-        </a>
+        <div className="workbench">
+          <section className="problem-panel">
+            <div className="question-meta">
+              <span className="question-code">{question.code}</span>
+              <span>{question.topic}</span>
+              <span>{question.difficulty}</span>
+            </div>
+            <div className="question-copy">
+              <h1>{question.title}</h1>
+              <p>{question.prompt}</p>
+            </div>
+            <a className="external-link" href={question.url} target="_blank" rel="noreferrer">
+              Full problem statement <Icon name="external" size={16} />
+            </a>
+            <div className="problem-action">
+              {!revealed ? (
+                <>
+                  <button className="primary-button" onClick={() => setRevealed(true)}>
+                    Show approach
+                  </button>
+                  <span><kbd>Space</kbd> to reveal</span>
+                </>
+              ) : (
+                <span className="approach-visible">Approach shown below</span>
+              )}
+            </div>
+          </section>
 
-        <div className="scratch-area">
-          <label htmlFor="scratchpad">Work it through</label>
-          <textarea
-            id="scratchpad"
-            value={scratch}
-            onChange={(event) => setScratch(event.target.value)}
-            placeholder="Write an invariant, outline, or complexity target…"
-            rows={3}
-          />
-          <span>Private scratchpad · cleared after this question</span>
+          <section className="editor-panel" aria-label="Coding workspace">
+            <div className="editor-toolbar">
+              <label>
+                <span className="sr-only">Language</span>
+                <select
+                  value={draft.language}
+                  onChange={(event) => onSaveDraft(question.id, { ...draft, language: event.target.value as CodeLanguage })}
+                >
+                  <option value="typescript">TypeScript</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                </select>
+              </label>
+              <span>Saved locally</span>
+            </div>
+            <CodeWorkspace
+              value={draft.code}
+              onChange={(code) => onSaveDraft(question.id, { ...draft, code })}
+            />
+          </section>
         </div>
 
-        {!revealed ? (
-          <div className="reveal-bar">
-            <button className="primary-button" onClick={() => setRevealed(true)}>
-              Show approach
-            </button>
-            <span><kbd>Space</kbd> to reveal</span>
-          </div>
-        ) : (
+        {revealed && (
           <section className="answer-panel" aria-live="polite">
             <div className="answer-copy">
               <span className="eyebrow">APPROACH</span>
@@ -321,7 +383,7 @@ function ReviewSession({
             <div className="rating-section">
               <div className="rating-heading">
                 <h2>How well did you recall it?</h2>
-                <span>Be honest—the interval adapts.</span>
+                <span>Rate the recall, not the final code.</span>
               </div>
               <div className="rating-grid">
                 {ratings.map((rating, index) => {
@@ -555,13 +617,23 @@ export default function App() {
   const removeQuestion = (questionId: string) => {
     setData((current) => {
       const reviews = { ...current.reviews };
+      const drafts = { ...current.drafts };
       delete reviews[questionId];
+      delete drafts[questionId];
       return {
         questions: current.questions.filter((question) => question.id !== questionId),
         reviews,
         history: current.history.filter((event) => event.questionId !== questionId),
+        drafts,
       };
     });
+  };
+
+  const saveDraft = (questionId: string, draft: CodeDraft) => {
+    setData((current) => ({
+      ...current,
+      drafts: { ...current.drafts, [questionId]: draft },
+    }));
   };
 
   const reset = () => {
@@ -577,12 +649,14 @@ export default function App() {
         <LibraryView data={data} onAdd={addQuestion} onRemove={removeQuestion} onReset={reset} />
       )}
       {view === "review" && (
-        <ReviewSession data={data} queue={queue} onRate={rateQuestion} onFinish={() => setView("today")} />
+        <ReviewSession
+          data={data}
+          queue={queue}
+          onRate={rateQuestion}
+          onFinish={() => setView("today")}
+          onSaveDraft={saveDraft}
+        />
       )}
-      <footer className="site-footer">
-        <span>Flashcode</span>
-        <span>The right problem, at the right interval.</span>
-      </footer>
     </div>
   );
 }

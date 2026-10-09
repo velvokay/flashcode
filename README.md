@@ -23,7 +23,8 @@ npm run build
 - Ten built-in interview-pattern questions with original summaries and canonical LeetCode links.
 - A due queue ordered by scheduled review time.
 - Anki-style `Again`, `Hard`, `Good`, and `Easy` ratings with visible next intervals.
-- A private per-question scratchpad that clears when the question advances.
+- A full-size code editor with TypeScript, JavaScript, Python, C++, and Java modes.
+- Per-question drafts that persist locally between review sessions.
 - A searchable library and a form for adding personal questions.
 - Browser-local persistence with an explicit reset action.
 - Keyboard review controls: `Space` reveals the approach; `1`–`4` rate recall.

@@ -8,7 +8,7 @@ The approved direction uses crisp digital geometry and flat color. The explorato
 
 ## Product premise
 
-**Flashcode helps people master coding questions through an adaptive flashcard practice loop that brings back the right problem at the right time.**
+**Flashcode schedules coding questions for review based on how well the learner recalled each one.**
 
 It is a serious practice tool, not a course marketplace, code editor, productivity dashboard, or game. The product should make repeated practice feel focused and finite. The user should always understand what is due, what they are doing now, and what comes next.
 
@@ -28,7 +28,7 @@ The identity should be recognizable through its route line, station marker, inde
 - **Personality:** Precise, composed, intelligent, candid, quietly encouraging.
 - **Desired emotion:** “I know exactly what to work on, and I can make meaningful progress now.”
 - **Design metaphor:** A metropolitan wayfinding system crossed with a beautifully engineered study instrument. The queue is a route; review milestones are stations; the active problem is the destination in focus.
-- **Brand promise:** The right problem, at the right interval.
+- **Product rule:** Put due questions first and keep the review decision obvious.
 
 Flashcode must communicate discipline without severity. It should feel designed for people who enjoy understanding systems, but it must never require them to understand the scheduling system before they can study.
 
@@ -36,8 +36,8 @@ Flashcode must communicate discipline without severity. It should feel designed 
 
 ### Typography
 
-- Use **Inter Variable** for interface and editorial text. Its neutral construction supports dense information without becoming anonymous when composition is strong.
-- Use **JetBrains Mono Variable** only for code, keyboard input, answer output, durations, and compact system identifiers. It is a functional second voice, not a decorative “developer” texture.
+- Use **Helvetica Neue** where available, falling back to Helvetica, Arial, and the platform sans-serif. This connects the interface to the Swiss and Vignelli references without requiring a fashionable web font.
+- Use **SF Mono** where available, falling back to Consolas or the platform monospace, for code, keyboard input, answer output, durations, and compact system identifiers.
 - Preferred interface weights: 400, 500, and 650. Avoid thin display weights and heavy 800–900 weights.
 - Use sentence case throughout. Uppercase is reserved for route identifiers and tiny operational labels of no more than three words.
 - Headings are compact and declarative, with slightly tight tracking. Body text is comfortable and neutral.
@@ -48,13 +48,13 @@ Suggested scale:
 
 | Role | Desktop | Mobile | Treatment |
 | --- | ---: | ---: | --- |
-| Display | 56/60 | 40/44 | Inter 500, tight tracking |
-| Page title | 36/42 | 30/36 | Inter 600 |
-| Section title | 24/30 | 22/28 | Inter 600 |
-| Body | 16/24 | 16/24 | Inter 400 |
-| Supporting | 14/20 | 14/20 | Inter 400–500 |
-| Operational label | 12/16 | 12/16 | Inter 650, optional uppercase |
-| Code | 15/24 | 14/22 | JetBrains Mono 400–500 |
+| Display | 56/60 | 40/44 | Helvetica Neue 500, tight tracking |
+| Page title | 36/42 | 30/36 | Helvetica Neue 600 |
+| Section title | 24/30 | 22/28 | Helvetica Neue 600 |
+| Body | 16/24 | 16/24 | Helvetica Neue 400 |
+| Supporting | 14/20 | 14/20 | Helvetica Neue 400–500 |
+| Operational label | 12/16 | 12/16 | Helvetica Neue 600, optional uppercase |
+| Code | 15/24 | 14/22 | SF Mono 400–500 |
 
 ### Color
 
@@ -126,6 +126,7 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 ### Content voice
 
 - Be concise, literal, and constructive. The interface is a calm instructor, not a cheerleader.
+- Do not use taglines, aphorisms, motivational filler, or marketing language inside the product. Prefer a useful status or omit the sentence.
 - Prefer: “12 due”, “Show answer”, “Again in 8 min”, “Done for today”.
 - Avoid: “Crush your goals”, “You’re on fire!”, “Become a coding ninja”, or guilt-based streak language.
 - Name ratings by recall quality: **Again / Hard / Good / Easy**. Show the resulting interval beside each choice when available.
@@ -154,6 +155,10 @@ The active work surface receives a single signal-red edge aligned with the recal
 
 When the due queue reaches zero, the route ends cleanly. Show a completed terminal marker, “Done for today,” the next due time, and one quiet optional action. No confetti, invented score, or pressure to continue.
 
+### 3.6 The coding workbench
+
+The active review is a split workbench: problem context on the left and a large persistent code editor on the right. The editor is the dominant working area, not a short-response field. On narrow screens the editor moves below the prompt and retains a substantial working height.
+
 ## 4. Creative exceptions to the universal design defaults
 
 ### Warm canvas instead of pure white
@@ -167,7 +172,7 @@ When the due queue reaches zero, the route ends cleanly. Show a completed termin
 ### Two type families for different information species
 
 - **Default overridden:** One primary sans-serif family.
-- **Replacement:** Inter for interface language; JetBrains Mono strictly for code, timing, keyboard input, and identifiers.
+- **Replacement:** Helvetica Neue/system sans for interface language; SF Mono/system monospace strictly for code, timing, keyboard input, and identifiers.
 - **Reason:** Code must retain its native rhythm, while operational metadata benefits from aligned numerals.
 - **Use:** Functional code and machine-like data only.
 - **Do not use:** Paragraphs, marketing headlines, navigation, or decorative “tech” copy.
