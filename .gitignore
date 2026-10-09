@@ -15,6 +15,9 @@ build/
 coverage/
 .next/
 .turbo/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # Local logs
 *.log
