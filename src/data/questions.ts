@@ -1,11 +1,11 @@
 import type { Question } from "../types";
+import neetcode150 from "./neetcode150.json";
 
 const createdAt = "2026-01-01T00:00:00.000Z";
 
-export const seedQuestions: Question[] = [
+const featuredQuestions: Question[] = [
   {
     id: "two-sum",
-    code: "ARR · 001",
     title: "Two Sum",
     topic: "Arrays",
     difficulty: "Easy",
@@ -23,7 +23,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "valid-parentheses",
-    code: "STK · 002",
     title: "Valid Parentheses",
     topic: "Stacks",
     difficulty: "Easy",
@@ -41,7 +40,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "best-time-stock",
-    code: "ARR · 003",
     title: "Best Time to Buy and Sell Stock",
     topic: "Arrays",
     difficulty: "Easy",
@@ -59,7 +57,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "binary-search",
-    code: "SRC · 004",
     title: "Binary Search",
     topic: "Search",
     difficulty: "Easy",
@@ -77,7 +74,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "reverse-linked-list",
-    code: "LNK · 005",
     title: "Reverse Linked List",
     topic: "Linked lists",
     difficulty: "Easy",
@@ -95,7 +91,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "maximum-depth-tree",
-    code: "TRE · 006",
     title: "Maximum Depth of Binary Tree",
     topic: "Trees",
     difficulty: "Easy",
@@ -113,7 +108,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "climbing-stairs",
-    code: "DP · 007",
     title: "Climbing Stairs",
     topic: "Dynamic programming",
     difficulty: "Easy",
@@ -131,7 +125,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "merge-intervals",
-    code: "INT · 008",
     title: "Merge Intervals",
     topic: "Intervals",
     difficulty: "Medium",
@@ -149,7 +142,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "number-of-islands",
-    code: "GRF · 009",
     title: "Number of Islands",
     topic: "Graphs",
     difficulty: "Medium",
@@ -167,7 +159,6 @@ export const seedQuestions: Question[] = [
   },
   {
     id: "lru-cache",
-    code: "DS · 010",
     title: "LRU Cache",
     topic: "Data structures",
     difficulty: "Medium",
@@ -184,3 +175,33 @@ export const seedQuestions: Question[] = [
     createdAt,
   },
 ];
+
+function slugFromUrl(url: string): string {
+  return url.split("/problems/")[1]?.replaceAll("/", "") ?? url;
+}
+
+const featuredByUrl = new Map(featuredQuestions.map((question) => [question.url, question]));
+
+function cleanTitle(title: string): string {
+  return title
+    .replace(/\b(And|In|From|With|To|Of|An|Is)\b/g, (word) => word.toLowerCase())
+    .replace(/\bBst\b/g, "BST");
+}
+
+export const seedQuestions: Question[] = neetcode150.map((problem) => {
+  const featured = featuredByUrl.get(problem.url);
+  if (featured) return featured;
+
+  return {
+    id: slugFromUrl(problem.url),
+    title: cleanTitle(problem.title),
+    topic: problem.topic,
+    difficulty: problem.difficulty as Question["difficulty"],
+    url: problem.url,
+    prompt: "Solve the problem on LeetCode, then return here to rate it.",
+    approach: [],
+    complexity: "",
+    builtIn: true,
+    createdAt,
+  };
+});

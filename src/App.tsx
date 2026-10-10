@@ -7,16 +7,19 @@ import {
   previewSchedule,
 } from "./lib/scheduler";
 import { clearData, createInitialData, loadData, saveData } from "./lib/storage";
-import type { AppData, CodeDraft, CodeLanguage, Difficulty, Question, Rating } from "./types";
+import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./data/studyPlans";
+import type { AppData, Difficulty, Question, Rating, StudyPlan } from "./types";
 
-type View = "today" | "library" | "review";
+type View = "today" | "plans" | "library" | "review";
 
 const ratingLabels: Record<Rating, string> = {
-  again: "Again",
-  hard: "Hard",
-  good: "Good",
-  easy: "Easy",
+  again: "Couldn't solve",
+  hard: "Needed help",
+  good: "Solved it",
+  easy: "Solved easily",
 };
+
+const SESSION_LIMIT = 10;
 
 function Icon({ name, size = 18 }: { name: "arrow" | "external" | "plus" | "search" | "x"; size?: number }) {
   const paths = {
@@ -70,6 +73,13 @@ function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => 
             Today
           </button>
           <button
+            className={view === "plans" ? "active" : ""}
+            onClick={() => onNavigate("plans")}
+            aria-current={view === "plans" ? "page" : undefined}
+          >
+            Plans
+          </button>
+          <button
             className={view === "library" ? "active" : ""}
             onClick={() => onNavigate("library")}
             aria-current={view === "library" ? "page" : undefined}
@@ -95,17 +105,31 @@ function Metric({ value, label }: { value: string | number; label: string }) {
   );
 }
 
-function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
+function TodayView({
+  data,
+  plan,
+  questions,
+  onStart,
+  onChoosePlan,
+}: {
+  data: AppData;
+  plan: StudyPlan;
+  questions: Question[];
+  onStart: () => void;
+  onChoosePlan: () => void;
+}) {
   const now = new Date();
-  const due = data.questions
+  const allDue = questions
     .filter((question) => isDue(data.reviews[question.id], now))
     .sort((a, b) => data.reviews[a.id].dueAt.localeCompare(data.reviews[b.id].dueAt));
+  const due = allDue.slice(0, SESSION_LIMIT);
+  const questionIds = new Set(questions.map((question) => question.id));
   const reviewedToday = data.history.filter((event) => {
     const date = new Date(event.reviewedAt);
-    return date.toDateString() === now.toDateString();
+    return questionIds.has(event.questionId) && date.toDateString() === now.toDateString();
   }).length;
-  const active = Object.values(data.reviews).filter((review) => review.repetitions > 0).length;
-  const nextDue = data.questions
+  const active = questions.filter((question) => data.reviews[question.id].repetitions > 0).length;
+  const nextDue = questions
     .map((question) => data.reviews[question.id])
     .filter((review) => !isDue(review, now))
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0];
@@ -113,26 +137,30 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
   return (
     <main className="page-shell today-page">
       <section className="today-hero">
-        <div className="eyebrow-row">
-          <span className="eyebrow">TODAY</span>
+        <div className="today-heading-row">
+          <button className="plan-context" onClick={onChoosePlan}>
+            <span>Plan</span>
+            <strong>{plan.name}</strong>
+            <small>Change</small>
+          </button>
           <time>{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</time>
         </div>
         <div className="hero-content">
           <h1>
             {due.length > 0
-              ? `${due.length} due`
+              ? `${due.length} to review`
               : "Nothing due"}
           </h1>
           {due.length === 0 && (
             <p className="lede">
               {nextDue
                 ? `Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
-                : "Add a question to begin."}
+                : "Add a question in Library."}
             </p>
           )}
           <div className="hero-action">
             <button className="primary-button" onClick={onStart} disabled={due.length === 0}>
-              <span>{due.length > 0 ? "Begin" : "Done for today"}</span>
+              <span>{due.length > 0 ? "Start" : "No reviews"}</span>
               {due.length > 0 && <Icon name="arrow" />}
             </button>
             {due.length > 0 && <span className="time-note">~{Math.max(5, due.length * 3)} min</span>}
@@ -140,35 +168,25 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
         </div>
       </section>
 
-      <section className="route-overview" aria-label="Today's route">
-        <div className="route-track" aria-hidden="true">
-          {Array.from({ length: Math.max(5, Math.min(due.length, 10)) }).map((_, index) => (
-            <span className={index === 0 && due.length > 0 ? "station current" : "station"} key={index} />
-          ))}
-        </div>
+      <section className="route-overview" aria-label="Plan progress">
         <div className="metrics-row">
-          <Metric value={due.length} label="Due now" />
-          <Metric value={active} label="In rotation" />
-          <Metric value={reviewedToday} label="Reviewed today" />
+          <Metric value={allDue.length} label="Due" />
+          <Metric value={active} label="Studied" />
+          <Metric value={reviewedToday} label="Reviews today" />
         </div>
       </section>
 
       <section className="queue-section">
         <div className="section-heading">
-          <div>
-            <span className="eyebrow">QUEUE</span>
-            <h2>{due.length > 0 ? "Next questions" : "Upcoming"}</h2>
-          </div>
+          <h2>{due.length > 0 ? "Up next" : "Questions"}</h2>
           <span className="section-count">
-            {due.length || data.questions.length} {(due.length || data.questions.length) === 1 ? "question" : "questions"}
+            {due.length > 0 ? `${due.length} this session` : `${questions.length} total`}
           </span>
         </div>
         <div className="question-list">
-          {(due.length > 0 ? due : data.questions.slice(0, 5)).slice(0, 5).map((question, index) => (
+          {(due.length > 0 ? due : questions.slice(0, SESSION_LIMIT)).map((question) => (
             <div className="question-row" key={question.id}>
-              <span className="queue-index">{String(index + 1).padStart(2, "0")}</span>
               <div className="question-primary">
-                <span className="question-code">{question.code}</span>
                 <h3>{question.title}</h3>
               </div>
               <span className="topic-label">{question.topic}</span>
@@ -183,84 +201,126 @@ function TodayView({ data, onStart }: { data: AppData; onStart: () => void }) {
   );
 }
 
-function ProgressRail({ total, current }: { total: number; current: number }) {
+function PlansView({
+  data,
+  onSelect,
+}: {
+  data: AppData;
+  onSelect: (planId: string) => void;
+}) {
+  const now = new Date();
+
   return (
-    <aside className="progress-rail" aria-label={`Question ${current + 1} of ${total}`}>
-      <span className="progress-count">{String(current + 1).padStart(2, "0")}</span>
-      <div className="vertical-track" aria-hidden="true">
-        {Array.from({ length: total }).map((_, index) => (
-          <span
-            key={index}
-            className={`rail-station ${index < current ? "complete" : ""} ${index === current ? "current" : ""}`}
-          />
-        ))}
-      </div>
-      <span className="progress-total">{String(total).padStart(2, "0")}</span>
-    </aside>
+    <main className="page-shell plans-page">
+      <section className="plans-heading">
+        <h1>Study plans</h1>
+      </section>
+
+      <section className="plan-list" aria-label="Available study plans">
+        {studyPlans.map((plan) => {
+          const questions = getQuestionsForPlan(plan.id, data.questions);
+          const due = questions.filter((question) => isDue(data.reviews[question.id], now)).length;
+          const reviewed = questions.filter((question) => data.reviews[question.id].repetitions > 0).length;
+          const selected = plan.id === data.activePlanId;
+
+          return (
+            <article className={`plan-row ${selected ? "selected" : ""}`} key={plan.id}>
+              <div className="plan-copy">
+                <div className="plan-title-line">
+                  <h2>{plan.name}</h2>
+                  {plan.sourceUrl && (
+                    <a href={plan.sourceUrl} target="_blank" rel="noreferrer">
+                      Source <Icon name="external" size={14} />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="plan-stat plan-size"><strong>{questions.length}</strong><span>Questions</span></div>
+              <div className="plan-stat"><strong>{due}</strong><span>Due</span></div>
+              <div className="plan-stat"><strong>{reviewed}</strong><span>Studied</span></div>
+              <button
+                className={selected ? "selected-plan-button" : "quiet-plan-button"}
+                onClick={() => onSelect(plan.id)}
+                disabled={selected}
+              >
+                {selected ? "Current" : "Select"}
+              </button>
+            </article>
+          );
+        })}
+      </section>
+    </main>
   );
 }
 
-function CodeWorkspace({ value, onChange }: { value: string; onChange: (code: string) => void }) {
-  const [scrollTop, setScrollTop] = useState(0);
-  const lineCount = Math.max(24, value.split("\n").length);
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Tab") return;
-    event.preventDefault();
-    const target = event.currentTarget;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const next = `${value.slice(0, start)}  ${value.slice(end)}`;
-    onChange(next);
-    requestAnimationFrame(() => {
-      target.selectionStart = target.selectionEnd = start + 2;
-    });
-  };
-
+function SessionProgress({ total, current }: { total: number; current: number }) {
   return (
-    <div className="code-editor">
-      <pre className="line-numbers" aria-hidden="true" style={{ transform: `translateY(-${scrollTop}px)` }}>
-        {Array.from({ length: lineCount }, (_, index) => index + 1).join("\n")}
-      </pre>
-      <textarea
-        aria-label="Code editor"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-        placeholder="Write your solution here…"
-        spellCheck={false}
-        autoCapitalize="off"
-        autoCorrect="off"
-      />
+    <div
+      className="session-progress"
+      role="progressbar"
+      aria-label={`Question ${current + 1} of ${total}`}
+      aria-valuemin={1}
+      aria-valuemax={total}
+      aria-valuenow={current + 1}
+    >
+      <span>Question {current + 1} of {total}</span>
+      <div className="progress-segments" aria-hidden="true">
+        {Array.from({ length: total }).map((_, index) => (
+          <span
+            key={index}
+            className={`progress-segment ${index < current ? "complete" : ""} ${index === current ? "current" : ""}`}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 function ReviewSession({
   data,
+  planQuestions,
   queue,
   onRate,
   onFinish,
-  onSaveDraft,
 }: {
   data: AppData;
+  planQuestions: Question[];
   queue: string[];
   onRate: (questionId: string, rating: Rating) => void;
   onFinish: () => void;
-  onSaveDraft: (questionId: string, draft: CodeDraft) => void;
 }) {
   const [current, setCurrent] = useState(0);
-  const [revealed, setRevealed] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
+  const [showRating, setShowRating] = useState(false);
   const question = data.questions.find((item) => item.id === queue[current]);
   const finished = current >= queue.length || !question;
 
   const rate = (rating: Rating) => {
-    if (!revealed || !question) return;
+    if (!showRating || !question) return;
     onRate(question.id, rating);
-    setRevealed(false);
+    setShowSteps(false);
+    setShowRating(false);
     setCurrent((value) => value + 1);
     window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  const openRating = () => {
+    setShowRating(true);
+    requestAnimationFrame(() => {
+      document.getElementById("rating-panel")?.scrollIntoView({ block: "nearest" });
+    });
+  };
+
+  const toggleSteps = () => {
+    setShowSteps((visible) => {
+      const next = !visible;
+      if (next) {
+        requestAnimationFrame(() => {
+          document.getElementById("key-steps")?.scrollIntoView({ block: "nearest" });
+        });
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -269,12 +329,7 @@ function ReviewSession({
       const typing = target.tagName === "TEXTAREA" || target.tagName === "INPUT";
       if (typing) return;
 
-      if (event.code === "Space" && !revealed && !finished) {
-        event.preventDefault();
-        setRevealed(true);
-      }
-
-      if (revealed && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
+      if (showRating && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
         const ratings: Rating[] = ["again", "hard", "good", "easy"];
         rate(ratings[Number(event.code.slice(-1)) - 1]);
       }
@@ -285,8 +340,9 @@ function ReviewSession({
   });
 
   if (finished) {
+    const planQuestionIds = new Set(planQuestions.map((item) => item.id));
     const futureReviews = Object.values(data.reviews)
-      .filter((review) => !isDue(review))
+      .filter((review) => planQuestionIds.has(review.questionId) && !isDue(review))
       .sort((a, b) => a.dueAt.localeCompare(b.dueAt));
 
     return (
@@ -294,35 +350,27 @@ function ReviewSession({
         <div className="terminus" aria-hidden="true">
           <span />
         </div>
-        <span className="eyebrow">TERMINUS</span>
-        <h1>Done for today.</h1>
+        <h1>Session complete</h1>
         <p>
-          {futureReviews[0]
-            ? `The next question returns ${formatDueDate(futureReviews[0].dueAt).toLowerCase()}.`
-            : "Your next review will appear here when it is due."}
+          {queue.length} {queue.length === 1 ? "question" : "questions"} reviewed.
+          {futureReviews[0] && ` Next review: ${formatDueDate(futureReviews[0].dueAt).toLowerCase()}.`}
         </p>
-        <div className="completion-stats">
-          <Metric value={queue.length} label="Reviewed" />
-          <Metric value={new Set(queue).size} label="Questions" />
-        </div>
-        <button className="primary-button" onClick={onFinish}>Return to today</button>
+        <button className="primary-button" onClick={onFinish}>Back to Today</button>
       </main>
     );
   }
 
   const reviewState = data.reviews[question.id];
-  const draft = data.drafts[question.id] ?? { language: "typescript", code: "" };
   const ratings: Rating[] = ["again", "hard", "good", "easy"];
 
   return (
     <main className="review-layout page-shell">
-      <ProgressRail total={queue.length} current={current} />
+      <SessionProgress total={queue.length} current={current} />
       <article className="review-card">
         <div className="focus-edge" aria-hidden="true" />
         <div className="workbench">
           <section className="problem-panel">
             <div className="question-meta">
-              <span className="question-code">{question.code}</span>
               <span>{question.topic}</span>
               <span>{question.difficulty}</span>
             </div>
@@ -330,74 +378,54 @@ function ReviewSession({
               <h1>{question.title}</h1>
               <p>{question.prompt}</p>
             </div>
-            <a className="external-link" href={question.url} target="_blank" rel="noreferrer">
-              Full problem statement <Icon name="external" size={16} />
-            </a>
             <div className="problem-action">
-              {!revealed ? (
-                <>
-                  <button className="primary-button" onClick={() => setRevealed(true)}>
-                    Show approach
-                  </button>
-                  <span><kbd>Space</kbd> to reveal</span>
-                </>
-              ) : (
-                <span className="approach-visible">Approach shown below</span>
+              <a className="primary-button" href={question.url} target="_blank" rel="noreferrer">
+                Open on LeetCode <Icon name="external" size={16} />
+              </a>
+              {!showRating && (
+                <button className="secondary-button" onClick={openRating}>Rate attempt</button>
+              )}
+              {question.approach.length > 0 && (
+                <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
+                  {showSteps ? "Hide key steps" : "Show key steps"}
+                </button>
               )}
             </div>
           </section>
 
-          <section className="editor-panel" aria-label="Coding workspace">
-            <div className="editor-toolbar">
-              <label>
-                <span className="sr-only">Language</span>
-                <select
-                  value={draft.language}
-                  onChange={(event) => onSaveDraft(question.id, { ...draft, language: event.target.value as CodeLanguage })}
-                >
-                  <option value="typescript">TypeScript</option>
-                  <option value="javascript">JavaScript</option>
-                  <option value="python">Python</option>
-                  <option value="cpp">C++</option>
-                  <option value="java">Java</option>
-                </select>
-              </label>
-              <span>Saved locally</span>
-            </div>
-            <CodeWorkspace
-              value={draft.code}
-              onChange={(code) => onSaveDraft(question.id, { ...draft, code })}
-            />
-          </section>
         </div>
 
-        {revealed && (
+        {(showSteps || showRating) && (
           <section className="answer-panel" aria-live="polite">
-            <div className="answer-copy">
-              <span className="eyebrow">APPROACH</span>
-              <ol>
-                {question.approach.map((step) => <li key={step}>{step}</li>)}
-              </ol>
-              <code>{question.complexity}</code>
-            </div>
-            <div className="rating-section">
-              <div className="rating-heading">
-                <h2>How well did you recall it?</h2>
-                <span>Rate the recall, not the final code.</span>
+            {showSteps && (
+              <div className="answer-copy" id="key-steps">
+                <h2>Key steps</h2>
+                <ol>
+                  {question.approach.map((step) => <li key={step}>{step}</li>)}
+                </ol>
+                {question.complexity && <code>{question.complexity}</code>}
               </div>
-              <div className="rating-grid">
-                {ratings.map((rating, index) => {
-                  const preview = previewSchedule(reviewState, rating);
-                  return (
-                    <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
-                      <span className="rating-key">{index + 1}</span>
-                      <strong>{ratingLabels[rating]}</strong>
-                      <small>{preview.label}</small>
-                    </button>
-                  );
-                })}
+            )}
+            {showRating && (
+              <div className="rating-section" id="rating-panel">
+                <div className="rating-heading">
+                  <h2>How did it go?</h2>
+                </div>
+                <div className="rating-grid">
+                  {ratings.map((rating, index) => {
+                    const preview = previewSchedule(reviewState, rating);
+                    const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
+                    return (
+                      <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
+                        <kbd className="rating-key">{index + 1}</kbd>
+                        <strong>{ratingLabels[rating]}</strong>
+                        <small>{nextReview}</small>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </section>
         )}
       </article>
@@ -418,17 +446,17 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
     const approach = String(form.get("approach") ?? "").trim();
     if (!title || !url || !prompt || !approach) return;
 
-    const count = Math.floor(Math.random() * 900) + 100;
+    const complexity = String(form.get("complexity") ?? "").trim();
+    if (!complexity) return;
     onAdd({
       id: `custom-${Date.now()}`,
-      code: `${topic.slice(0, 3).toUpperCase()} · ${count}`,
       title,
       url,
       topic,
       difficulty,
       prompt,
       approach: approach.split("\n").map((line) => line.trim()).filter(Boolean),
-      complexity: "Review your implementation's time and space complexity.",
+      complexity,
       builtIn: false,
       createdAt: new Date().toISOString(),
     });
@@ -437,10 +465,7 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
   return (
     <form className="add-form" onSubmit={submit}>
       <div className="form-header">
-        <div>
-          <span className="eyebrow">NEW QUESTION</span>
-          <h2>Add to the route</h2>
-        </div>
+        <h2>Add question</h2>
         <button type="button" className="icon-button" onClick={onCancel} aria-label="Close form"><Icon name="x" /></button>
       </div>
       <div className="form-grid">
@@ -449,7 +474,7 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
           <input name="title" required placeholder="Course Schedule" />
         </label>
         <label>
-          <span>Problem link</span>
+          <span>LeetCode link</span>
           <input name="url" required type="url" placeholder="https://…" />
         </label>
         <label>
@@ -465,12 +490,16 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
           </select>
         </label>
         <label className="full-field">
-          <span>Prompt in your own words</span>
-          <textarea name="prompt" required rows={3} placeholder="What should you be able to solve?" />
+          <span>Problem summary</span>
+          <textarea name="prompt" required rows={3} placeholder="Summarize the problem in a sentence or two." />
         </label>
         <label className="full-field">
-          <span>Key approach · one step per line</span>
+          <span>Solution steps</span>
           <textarea name="approach" required rows={4} placeholder={"Build the graph\nTrack indegrees\nProcess zero-indegree nodes"} />
+        </label>
+        <label className="full-field">
+          <span>Complexity</span>
+          <input name="complexity" required placeholder="O(V + E) time · O(V + E) space" />
         </label>
       </div>
       <div className="form-actions">
@@ -483,11 +512,15 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
 
 function LibraryView({
   data,
+  plan,
+  questions,
   onAdd,
   onRemove,
   onReset,
 }: {
   data: AppData;
+  plan: StudyPlan;
+  questions: Question[];
   onAdd: (question: Question) => void;
   onRemove: (id: string) => void;
   onReset: () => void;
@@ -497,19 +530,17 @@ function LibraryView({
   const [confirmReset, setConfirmReset] = useState(false);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return data.questions;
-    return data.questions.filter((question) =>
+    if (!normalized) return questions;
+    return questions.filter((question) =>
       [question.title, question.topic, question.difficulty].some((value) => value.toLowerCase().includes(normalized)),
     );
-  }, [data.questions, query]);
+  }, [questions, query]);
 
   return (
     <main className="page-shell library-page">
       <section className="library-heading">
         <div>
-          <span className="eyebrow">LIBRARY</span>
-          <h1>Your questions</h1>
-          <p>Keep the collection small enough to revisit and broad enough to stay useful.</p>
+          <h1>{plan.name}</h1>
         </div>
         <button className="primary-button" onClick={() => setAdding(true)}>
           <Icon name="plus" /> Add question
@@ -524,7 +555,7 @@ function LibraryView({
           <span className="sr-only">Search questions</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by title, topic, or difficulty" />
         </label>
-        <span>{filtered.length} of {data.questions.length}</span>
+        <span>{query.trim() ? `${filtered.length} results` : `${questions.length} questions`}</span>
       </section>
 
       <div className="library-list">
@@ -532,9 +563,7 @@ function LibraryView({
           const review = data.reviews[question.id];
           return (
             <article className="library-row" key={question.id}>
-              <span className={`status-dot ${isDue(review) ? "due" : ""}`} aria-hidden="true" />
               <div className="library-title">
-                <span className="question-code">{question.code}</span>
                 <h2>{question.title}</h2>
               </div>
               <span className="topic-label">{question.topic}</span>
@@ -551,16 +580,16 @@ function LibraryView({
 
       <section className="data-settings">
         <div>
-          <h2>Local data</h2>
-          <p>Progress is stored in this browser. Reset restores the original ten questions.</p>
+          <h2>Data</h2>
+          <p>Saved in this browser. Resetting deletes your progress and custom questions.</p>
         </div>
         {!confirmReset ? (
-          <button className="quiet-button danger-text" onClick={() => setConfirmReset(true)}>Reset progress</button>
+          <button className="quiet-button danger-text" onClick={() => setConfirmReset(true)}>Reset app</button>
         ) : (
           <div className="confirm-actions">
-            <span>Reset everything?</span>
+            <span>Delete progress and custom questions?</span>
             <button className="quiet-button" onClick={() => setConfirmReset(false)}>Cancel</button>
-            <button className="danger-button" onClick={() => { onReset(); setConfirmReset(false); }}>Reset</button>
+            <button className="danger-button" onClick={() => { onReset(); setConfirmReset(false); }}>Delete</button>
           </div>
         )}
       </section>
@@ -572,14 +601,20 @@ export default function App() {
   const [data, setData] = useState<AppData>(() => loadData());
   const [view, setView] = useState<View>("today");
   const [queue, setQueue] = useState<string[]>([]);
+  const activePlan = getStudyPlan(data.activePlanId);
+  const activeQuestions = useMemo(
+    () => getQuestionsForPlan(data.activePlanId, data.questions),
+    [data.activePlanId, data.questions],
+  );
 
   useEffect(() => saveData(data), [data]);
 
   const startReview = () => {
     const now = new Date();
-    const due = data.questions
+    const due = activeQuestions
       .filter((question) => isDue(data.reviews[question.id], now))
       .sort((a, b) => data.reviews[a.id].dueAt.localeCompare(data.reviews[b.id].dueAt))
+      .slice(0, SESSION_LIMIT)
       .map((question) => question.id);
     setQueue(due);
     setView("review");
@@ -621,19 +656,13 @@ export default function App() {
       delete reviews[questionId];
       delete drafts[questionId];
       return {
+        ...current,
         questions: current.questions.filter((question) => question.id !== questionId),
         reviews,
         history: current.history.filter((event) => event.questionId !== questionId),
         drafts,
       };
     });
-  };
-
-  const saveDraft = (questionId: string, draft: CodeDraft) => {
-    setData((current) => ({
-      ...current,
-      drafts: { ...current.drafts, [questionId]: draft },
-    }));
   };
 
   const reset = () => {
@@ -644,17 +673,44 @@ export default function App() {
   return (
     <div className="app">
       <Header view={view} onNavigate={setView} />
-      {view === "today" && <TodayView data={data} onStart={startReview} />}
+      {view === "today" && (
+        <TodayView
+          data={data}
+          plan={activePlan}
+          questions={activeQuestions}
+          onStart={startReview}
+          onChoosePlan={() => setView("plans")}
+        />
+      )}
+      {view === "plans" && (
+        <PlansView
+          data={data}
+          onSelect={(activePlanId) => {
+            setData((current) => ({ ...current, activePlanId }));
+            setView("today");
+          }}
+        />
+      )}
       {view === "library" && (
-        <LibraryView data={data} onAdd={addQuestion} onRemove={removeQuestion} onReset={reset} />
+        <LibraryView
+          data={data}
+          plan={activePlan}
+          questions={activeQuestions}
+          onAdd={(question) => {
+            addQuestion(question);
+            setData((current) => ({ ...current, activePlanId: "personal" }));
+          }}
+          onRemove={removeQuestion}
+          onReset={reset}
+        />
       )}
       {view === "review" && (
         <ReviewSession
           data={data}
+          planQuestions={activeQuestions}
           queue={queue}
           onRate={rateQuestion}
           onFinish={() => setView("today")}
-          onSaveDraft={saveDraft}
         />
       )}
     </div>

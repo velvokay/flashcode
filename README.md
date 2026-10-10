@@ -1,6 +1,15 @@
 # Flashcode
 
-Flashcode is a local-first spaced-repetition app for coding questions. It keeps a small review queue, reveals concise solution cues, and schedules each question from the learner's own recall rating.
+Spaced repetition for coding interview questions. Choose a plan, solve on LeetCode, and record how it went.
+
+Included plans:
+
+- NeetCode 150
+- Blind 75
+- Starter 10
+- My questions
+
+Progress is stored locally and carries over when a question appears in more than one plan.
 
 ## Run locally
 
@@ -20,14 +29,13 @@ npm run build
 
 ## MVP behavior
 
-- Ten built-in interview-pattern questions with original summaries and canonical LeetCode links.
-- A due queue ordered by scheduled review time.
-- Anki-style `Again`, `Hard`, `Good`, and `Easy` ratings with visible next intervals.
-- A full-size code editor with TypeScript, JavaScript, Python, C++, and Java modes.
-- Per-question drafts that persist locally between review sessions.
+- NeetCode 150, Blind 75, Starter 10, and personal question sets.
+- Review sessions capped at ten due questions.
+- Direct LeetCode links.
+- Clear outcomes: `Couldn't solve`, `Needed help`, `Solved it`, and `Solved easily`.
 - A searchable library and a form for adding personal questions.
 - Browser-local persistence with an explicit reset action.
-- Keyboard review controls: `Space` reveals the approach; `1`–`4` rate recall.
+- Keyboard shortcuts `1`–`4` for recording an outcome.
 
 ## Architecture
 

@@ -11,7 +11,6 @@ export interface CodeDraft {
 
 export interface Question {
   id: string;
-  code: string;
   title: string;
   topic: string;
   difficulty: Difficulty;
@@ -46,4 +45,13 @@ export interface AppData {
   reviews: Record<string, ReviewState>;
   history: ReviewEvent[];
   drafts: Record<string, CodeDraft>;
+  activePlanId: string;
+}
+
+export interface StudyPlan {
+  id: string;
+  name: string;
+  sourceUrl?: string;
+  questionUrls?: string[];
+  custom?: boolean;
 }

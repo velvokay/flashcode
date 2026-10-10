@@ -1,4 +1,5 @@
 import { seedQuestions } from "../data/questions";
+import { DEFAULT_PLAN_ID, studyPlans } from "../data/studyPlans";
 import type { AppData } from "../types";
 import { createReviewState } from "./scheduler";
 
@@ -12,6 +13,7 @@ export function createInitialData(now = new Date()): AppData {
     ),
     history: [],
     drafts: {},
+    activePlanId: DEFAULT_PLAN_ID,
   };
 }
 
@@ -27,7 +29,25 @@ export function loadData(): AppData {
       return createInitialData();
     }
 
-    return { ...parsed, drafts: parsed.drafts ?? {} };
+    const seedByUrl = new Map(seedQuestions.map((question) => [question.url, question]));
+    const storedQuestions = parsed.questions.map((question) => {
+      const seed = seedByUrl.get(question.url);
+      return seed ? { ...seed, id: question.id } : question;
+    });
+    const storedUrls = new Set(storedQuestions.map((question) => question.url));
+    const questions = [
+      ...storedQuestions,
+      ...seedQuestions.filter((question) => !storedUrls.has(question.url)),
+    ];
+    const reviews = { ...parsed.reviews };
+    for (const question of questions) {
+      reviews[question.id] ??= createReviewState(question.id);
+    }
+    const activePlanId = studyPlans.some((plan) => plan.id === parsed.activePlanId)
+      ? parsed.activePlanId
+      : DEFAULT_PLAN_ID;
+
+    return { ...parsed, questions, reviews, drafts: parsed.drafts ?? {}, activePlanId };
   } catch {
     return createInitialData();
   }
