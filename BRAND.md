@@ -129,9 +129,10 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 - Do not use taglines, aphorisms, motivational filler, or marketing language inside the product. Prefer a useful status or omit the sentence.
 - Prefer: “12 due”, “Show answer”, “Again in 8 min”, “Done for today”.
 - Avoid: “Crush your goals”, “You’re on fire!”, “Become a coding ninja”, or guilt-based streak language.
-- Name ratings by recall quality: **Again / Hard / Good / Easy**. Show the resulting interval beside each choice when available.
+- Name ratings by what happened: **Couldn’t solve / Needed help / Solved independently**. Show the resulting interval beside each choice when available.
 - Use “question” for the learning unit, “review” for an encounter, “collection” for a user-defined group, and “queue” for the ordered set due now.
 - Error messages state what happened and the next useful action.
+- Never use centered dots or bullet glyphs to divide inline labels. Separate related values with spacing, alignment, rules, or distinct columns instead.
 
 ## 3. Signature design decisions
 
@@ -139,13 +140,13 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 
 A thin line with station markers shows the current review's place in the active queue. On desktop it can run vertically beside the work surface; on mobile it runs horizontally above it. It represents only the current session—not lifetime mastery—and therefore remains honest and comprehensible.
 
-### 3.2 The question index
+### 3.2 Question identity
 
-Every question may carry a compact operational identifier such as `ARR · 014` or `DP · 008`. The prefix identifies the collection or topic; the number gives stable local orientation. Render it in mono with tabular numerals. It is useful metadata, not faux-industrial decoration.
+Use the question title and its plain-language category as its identity. Do not add arbitrary operational codes or faux-industrial numbering. Show an identifier only when it comes from a source users recognize and need.
 
 ### 3.3 The interval board
 
-Review choices align in a single row like a destination board: recall label above, next interval below. Their layout stays fixed across questions. On mobile they form a 2×2 grid rather than a horizontally scrolling row.
+The three review choices align in a single row like a destination board: outcome above, next interval below. Their layout stays fixed across questions. On mobile they stack vertically rather than scrolling horizontally.
 
 ### 3.4 The focus edge
 
@@ -190,7 +191,7 @@ The active review is a split workbench: problem context on the left and a large 
 - **Default overridden:** Avoid uppercase text.
 - **Replacement:** Uppercase may be used for short collection codes and operational labels at 12–13px.
 - **Reason:** It makes wayfinding metadata instantly distinct from prose.
-- **Use:** `DP · 008`, `DUE`, `NEXT`, keyboard keys.
+- **Use:** `DUE`, `NEXT`, keyboard keys.
 - **Do not use:** Headings, buttons, sentences, or motivational copy.
 
 ## 5. Anti-identity

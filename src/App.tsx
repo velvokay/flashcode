@@ -8,9 +8,17 @@ import {
 } from "./lib/scheduler";
 import { clearData, createInitialData, loadData, saveData } from "./lib/storage";
 import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./data/studyPlans";
+import {
+  buildCategoryQueue,
+  buildStudyQueue,
+  getCategoryProgress,
+  getCurrentCategory,
+  getQueueCounts,
+  isStudied,
+} from "./lib/studyPath";
 import type { AppData, Difficulty, Question, Rating, StudyPlan } from "./types";
 
-type View = "today" | "plans" | "library" | "review";
+type View = "today" | "path" | "library" | "review";
 
 const ratingLabels: Record<Rating, string> = {
   again: "Couldn't solve",
@@ -72,11 +80,11 @@ function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => 
             Today
           </button>
           <button
-            className={view === "plans" ? "active" : ""}
-            onClick={() => onNavigate("plans")}
-            aria-current={view === "plans" ? "page" : undefined}
+            className={view === "path" ? "active" : ""}
+            onClick={() => onNavigate("path")}
+            aria-current={view === "path" ? "page" : undefined}
           >
-            Plans
+            Path
           </button>
           <button
             className={view === "library" ? "active" : ""}
@@ -104,53 +112,104 @@ function Metric({ value, label }: { value: string | number; label: string }) {
   );
 }
 
+function ReadinessBar({
+  current,
+  due,
+  newCount,
+  total,
+  label,
+}: {
+  current: number;
+  due: number;
+  newCount: number;
+  total: number;
+  label: string;
+}) {
+  const width = (value: number) => `${total > 0 ? (value / total) * 100 : 0}%`;
+
+  return (
+    <div
+      className="readiness-bar"
+      role="img"
+      aria-label={`${label}: ${current} current, ${due} due, ${newCount} new`}
+    >
+      {current > 0 && <span className="readiness-current" style={{ width: width(current) }} />}
+      {due > 0 && <span className="readiness-due" style={{ width: width(due) }} />}
+      {newCount > 0 && <span className="readiness-new" style={{ width: width(newCount) }} />}
+    </div>
+  );
+}
+
+function ReadinessCounts({
+  current,
+  due,
+  newCount,
+  compact = false,
+}: {
+  current: number;
+  due: number;
+  newCount: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`readiness-counts ${compact ? "compact" : ""}`}>
+      <span className={`count-current ${current === 0 ? "is-zero" : ""}`}><strong>{current}</strong> Current</span>
+      <span className={`count-due ${due === 0 ? "is-zero" : ""}`}><strong>{due}</strong> Due</span>
+      <span className={`count-new ${newCount === 0 ? "is-zero" : ""}`}><strong>{newCount}</strong> New</span>
+    </div>
+  );
+}
+
 function TodayView({
   data,
   plan,
   questions,
+  queue,
   onStart,
   onChoosePlan,
 }: {
   data: AppData;
   plan: StudyPlan;
   questions: Question[];
+  queue: Question[];
   onStart: () => void;
   onChoosePlan: () => void;
 }) {
   const now = new Date();
   const allDue = questions
-    .filter((question) => isDue(data.reviews[question.id], now))
+    .filter((question) => isStudied(data.reviews[question.id]) && isDue(data.reviews[question.id], now))
     .sort((a, b) => data.reviews[a.id].dueAt.localeCompare(data.reviews[b.id].dueAt));
-  const due = allDue.slice(0, SESSION_LIMIT);
+  const queueCounts = getQueueCounts(queue, data.reviews);
   const questionIds = new Set(questions.map((question) => question.id));
   const reviewedToday = data.history.filter((event) => {
     const date = new Date(event.reviewedAt);
     return questionIds.has(event.questionId) && date.toDateString() === now.toDateString();
   }).length;
-  const active = questions.filter((question) => data.reviews[question.id].repetitions > 0).length;
+  const active = questions.filter((question) => isStudied(data.reviews[question.id])).length;
   const nextDue = questions
     .map((question) => data.reviews[question.id])
-    .filter((review) => !isDue(review, now))
+    .filter((review) => isStudied(review) && !isDue(review, now))
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0];
 
   return (
     <main className="page-shell today-page">
       <section className="today-hero">
         <div className="today-heading-row">
-          <button className="plan-context" onClick={onChoosePlan}>
-            <span>Plan</span>
+          <button
+            className="plan-context"
+            onClick={onChoosePlan}
+            aria-label={`Open ${plan.name} study path`}
+          >
             <strong>{plan.name}</strong>
-            <small>Change</small>
+            <Icon name="arrow" size={15} />
           </button>
           <time>{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</time>
         </div>
         <div className="hero-content">
           <h1>
-            {due.length > 0
-              ? `${due.length} to review`
-              : "Nothing due"}
+            {queue.length > 0 ? `${queue.length} to study` : "You're caught up"}
           </h1>
-          {due.length === 0 && (
+          {queue.length === 0 && (
             <p className="lede">
               {nextDue
                 ? `Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
@@ -158,11 +217,11 @@ function TodayView({
             </p>
           )}
           <div className="hero-action">
-            <button className="primary-button" onClick={onStart} disabled={due.length === 0}>
-              <span>{due.length > 0 ? "Start" : "No reviews"}</span>
-              {due.length > 0 && <Icon name="arrow" />}
+            <button className="primary-button" onClick={onStart} disabled={queue.length === 0}>
+              <span>{queue.length > 0 ? "Start" : "Nothing scheduled"}</span>
+              {queue.length > 0 && <Icon name="arrow" />}
             </button>
-            {due.length > 0 && <span className="time-note">~{Math.max(5, due.length * 3)} min</span>}
+            {queue.length > 0 && <span className="time-note">~{Math.max(5, queue.length * 3)} min</span>}
           </div>
         </div>
       </section>
@@ -170,20 +229,25 @@ function TodayView({
       <section className="route-overview" aria-label="Plan progress">
         <div className="metrics-row">
           <Metric value={allDue.length} label="Due" />
-          <Metric value={active} label="Studied" />
+          <Metric value={active} label="Attempted" />
           <Metric value={reviewedToday} label="Reviews today" />
         </div>
       </section>
 
       <section className="queue-section">
         <div className="section-heading">
-          <h2>{due.length > 0 ? "Up next" : "Questions"}</h2>
-          <span className="section-count">
-            {due.length > 0 ? `${due.length} this session` : `${questions.length} total`}
-          </span>
+          <h2>{queue.length > 0 ? "Up next" : "Questions"}</h2>
+          <div className="section-count queue-counts">
+            {queue.length > 0
+              ? <>
+                  {queueCounts.reviews > 0 && <span>{queueCounts.reviews} review{queueCounts.reviews === 1 ? "" : "s"}</span>}
+                  {queueCounts.newCount > 0 && <span>{queueCounts.newCount} new</span>}
+                </>
+              : `${questions.length} total`}
+          </div>
         </div>
         <div className="question-list">
-          {(due.length > 0 ? due : questions.slice(0, SESSION_LIMIT)).map((question) => (
+          {(queue.length > 0 ? queue : questions.slice(0, SESSION_LIMIT)).map((question) => (
             <div className="question-row" key={question.id}>
               <div className="question-primary">
                 <h3>{question.title}</h3>
@@ -200,50 +264,114 @@ function TodayView({
   );
 }
 
-function PlansView({
+function PathView({
   data,
+  plan,
+  questions,
   onSelect,
+  onStartCategory,
 }: {
   data: AppData;
+  plan: StudyPlan;
+  questions: Question[];
   onSelect: (planId: string) => void;
+  onStartCategory: (category: string) => void;
 }) {
+  const [choosingPlan, setChoosingPlan] = useState(false);
   const now = new Date();
+  const progress = getCategoryProgress(questions, data.reviews, now);
+  const currentCategory = getCurrentCategory(questions, data.reviews, now);
+  const totalStudied = progress.reduce((sum, category) => sum + category.studied, 0);
+  const totalCurrent = progress.reduce((sum, category) => sum + category.current, 0);
+  const totalDue = progress.reduce((sum, category) => sum + category.due, 0);
+  const totalNew = progress.reduce((sum, category) => sum + category.newCount, 0);
 
   return (
-    <main className="page-shell plans-page">
-      <section className="plans-heading">
-        <h1>Study plans</h1>
+    <main className="page-shell path-page">
+      <section className="path-heading">
+        <div>
+          <span className="path-kicker">Study path</span>
+          <h1>{plan.name}</h1>
+          <p>{totalStudied} of {questions.length} attempted</p>
+        </div>
+        <button className="secondary-button" onClick={() => setChoosingPlan((value) => !value)}>
+          {choosingPlan ? "Close" : "Change plan"}
+        </button>
       </section>
 
-      <section className="plan-list" aria-label="Available study plans">
-        {studyPlans.map((plan) => {
-          const questions = getQuestionsForPlan(plan.id, data.questions);
-          const due = questions.filter((question) => isDue(data.reviews[question.id], now)).length;
-          const reviewed = questions.filter((question) => data.reviews[question.id].repetitions > 0).length;
-          const selected = plan.id === data.activePlanId;
+      <section className="plan-readiness" aria-label="Plan readiness">
+        <ReadinessBar
+          current={totalCurrent}
+          due={totalDue}
+          newCount={totalNew}
+          total={questions.length}
+          label={`${plan.name} readiness`}
+        />
+        <ReadinessCounts current={totalCurrent} due={totalDue} newCount={totalNew} />
+      </section>
 
-          return (
-            <article className={`plan-row ${selected ? "selected" : ""}`} key={plan.id}>
-              <div className="plan-copy">
-                <div className="plan-title-line">
-                  <h2>{plan.name}</h2>
-                  {plan.sourceUrl && (
-                    <a href={plan.sourceUrl} target="_blank" rel="noreferrer">
-                      Source <Icon name="external" size={14} />
-                    </a>
-                  )}
+      {choosingPlan && (
+        <section className="plan-picker" aria-label="Available study plans">
+          {studyPlans.map((option) => {
+            const planQuestions = getQuestionsForPlan(option.id, data.questions);
+            const attempted = planQuestions.filter((question) => isStudied(data.reviews[question.id])).length;
+            const selected = option.id === data.activePlanId;
+
+            return (
+              <article className={`plan-option ${selected ? "selected" : ""}`} key={option.id}>
+                <div>
+                  <h2>{option.name}</h2>
+                  <span>{attempted} of {planQuestions.length} attempted</span>
                 </div>
+                <button
+                  className={selected ? "selected-plan-button" : "quiet-plan-button"}
+                  onClick={() => { onSelect(option.id); setChoosingPlan(false); }}
+                  disabled={selected}
+                >
+                  {selected ? "Current" : "Select"}
+                </button>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      <section className="category-path" aria-label={`${plan.name} categories`}>
+        {progress.map((category) => {
+          const current = category.name === currentCategory;
+          return (
+            <article className={`category-row ${current ? "current" : ""}`} key={category.name}>
+              <div className="path-station" aria-hidden="true"><span /></div>
+              <div className="category-copy">
+                <div className="category-title-line">
+                  <h2>{category.name}</h2>
+                  {current && <span className="current-label">Next</span>}
+                </div>
+                <p>{category.studied} of {category.total} attempted</p>
               </div>
-              <div className="plan-stat plan-size"><strong>{questions.length}</strong><span>Questions</span></div>
-              <div className="plan-stat"><strong>{due}</strong><span>Due</span></div>
-              <div className="plan-stat"><strong>{reviewed}</strong><span>Studied</span></div>
-              <button
-                className={selected ? "selected-plan-button" : "quiet-plan-button"}
-                onClick={() => onSelect(plan.id)}
-                disabled={selected}
-              >
-                {selected ? "Current" : "Select"}
-              </button>
+              <div className="category-progress">
+                <ReadinessBar
+                  current={category.current}
+                  due={category.due}
+                  newCount={category.newCount}
+                  total={category.total}
+                  label={`${category.name} readiness`}
+                />
+                <ReadinessCounts
+                  current={category.current}
+                  due={category.due}
+                  newCount={category.newCount}
+                  compact
+                />
+              </div>
+              {category.available > 0 && (
+                <button
+                  className="category-action"
+                  onClick={() => onStartCategory(category.name)}
+                >
+                  Study category
+                </button>
+              )}
             </article>
           );
         })}
@@ -529,7 +657,7 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
         </label>
         <label className="full-field">
           <span>Complexity</span>
-          <input name="complexity" required placeholder="O(V + E) time · O(V + E) space" />
+          <input name="complexity" required placeholder="O(V + E) time / O(V + E) space" />
         </label>
       </div>
       <div className="form-actions">
@@ -636,17 +764,19 @@ export default function App() {
     () => getQuestionsForPlan(data.activePlanId, data.questions),
     [data.activePlanId, data.questions],
   );
+  const todayQueue = buildStudyQueue(activeQuestions, data.reviews, new Date(), SESSION_LIMIT);
 
   useEffect(() => saveData(data), [data]);
 
   const startReview = () => {
-    const now = new Date();
-    const due = activeQuestions
-      .filter((question) => isDue(data.reviews[question.id], now))
-      .sort((a, b) => data.reviews[a.id].dueAt.localeCompare(data.reviews[b.id].dueAt))
-      .slice(0, SESSION_LIMIT)
-      .map((question) => question.id);
-    setQueue(due);
+    setQueue(todayQueue.map((question) => question.id));
+    setView("review");
+  };
+
+  const startCategory = (category: string) => {
+    const focused = buildCategoryQueue(activeQuestions, data.reviews, category, new Date(), SESSION_LIMIT);
+    if (focused.length === 0) return;
+    setQueue(focused.map((question) => question.id));
     setView("review");
   };
 
@@ -708,17 +838,20 @@ export default function App() {
           data={data}
           plan={activePlan}
           questions={activeQuestions}
+          queue={todayQueue}
           onStart={startReview}
-          onChoosePlan={() => setView("plans")}
+          onChoosePlan={() => setView("path")}
         />
       )}
-      {view === "plans" && (
-        <PlansView
+      {view === "path" && (
+        <PathView
           data={data}
+          plan={activePlan}
+          questions={activeQuestions}
           onSelect={(activePlanId) => {
             setData((current) => ({ ...current, activePlanId }));
-            setView("today");
           }}
+          onStartCategory={startCategory}
         />
       )}
       {view === "library" && (
