@@ -307,7 +307,15 @@ function ReviewSession({
   const openRating = () => {
     setShowRating(true);
     requestAnimationFrame(() => {
-      document.getElementById("rating-panel")?.scrollIntoView({ block: "nearest" });
+      document.getElementById("close-review-sheet")?.focus();
+    });
+  };
+
+  const closeRating = () => {
+    setShowSteps(false);
+    setShowRating(false);
+    requestAnimationFrame(() => {
+      document.getElementById("finish-attempt")?.focus();
     });
   };
 
@@ -328,6 +336,11 @@ function ReviewSession({
       const target = event.target as HTMLElement;
       const typing = target.tagName === "TEXTAREA" || target.tagName === "INPUT";
       if (typing) return;
+
+      if (showRating && event.key === "Escape") {
+        closeRating();
+        return;
+      }
 
       if (showRating && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
         const ratings: Rating[] = ["again", "hard", "good", "easy"];
@@ -382,52 +395,65 @@ function ReviewSession({
               <a className="primary-button" href={question.url} target="_blank" rel="noreferrer">
                 Open on LeetCode <Icon name="external" size={16} />
               </a>
-              {!showRating && (
-                <button className="secondary-button" onClick={openRating}>Rate attempt</button>
-              )}
-              {question.approach.length > 0 && (
-                <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
-                  {showSteps ? "Hide key steps" : "Show key steps"}
-                </button>
-              )}
+              <button
+                className="secondary-button"
+                id="finish-attempt"
+                onClick={openRating}
+                aria-controls="review-sheet"
+                aria-expanded={showRating}
+              >
+                Finish attempt
+              </button>
             </div>
           </section>
-
         </div>
 
-        {(showSteps || showRating) && (
-          <section className="answer-panel" aria-live="polite">
-            {showSteps && (
-              <div className="answer-copy" id="key-steps">
-                <h2>Key steps</h2>
+        <section
+          className={`review-sheet ${showRating ? "open" : ""}`}
+          id="review-sheet"
+          aria-hidden={!showRating}
+          aria-labelledby="review-sheet-title"
+        >
+          <div className="review-sheet-header">
+            <h2 id="review-sheet-title">How did it go?</h2>
+            <button
+              className="icon-button review-sheet-close"
+              id="close-review-sheet"
+              onClick={closeRating}
+              aria-label="Close review"
+            >
+              <Icon name="x" />
+            </button>
+          </div>
+
+          <div className="rating-grid">
+            {ratings.map((rating, index) => {
+              const preview = previewSchedule(reviewState, rating);
+              const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
+              return (
+                <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
+                  <kbd className="rating-key">{index + 1}</kbd>
+                  <strong>{ratingLabels[rating]}</strong>
+                  <small>{nextReview}</small>
+                </button>
+              );
+            })}
+          </div>
+
+          {question.approach.length > 0 && (
+            <div className="review-sheet-steps">
+              <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
+                {showSteps ? "Hide key steps" : "View key steps"}
+              </button>
+              <div className={`answer-copy ${showSteps ? "open" : ""}`} id="key-steps" aria-hidden={!showSteps}>
                 <ol>
                   {question.approach.map((step) => <li key={step}>{step}</li>)}
                 </ol>
                 {question.complexity && <code>{question.complexity}</code>}
               </div>
-            )}
-            {showRating && (
-              <div className="rating-section" id="rating-panel">
-                <div className="rating-heading">
-                  <h2>How did it go?</h2>
-                </div>
-                <div className="rating-grid">
-                  {ratings.map((rating, index) => {
-                    const preview = previewSchedule(reviewState, rating);
-                    const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
-                    return (
-                      <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
-                        <kbd className="rating-key">{index + 1}</kbd>
-                        <strong>{ratingLabels[rating]}</strong>
-                        <small>{nextReview}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+            </div>
+          )}
+        </section>
       </article>
     </main>
   );
