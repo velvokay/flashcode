@@ -30,15 +30,10 @@ export function previewSchedule(
 
   if (rating === "hard") {
     intervalDays = state.repetitions === 0 ? 1 : roundedDays(state.intervalDays * 1.2);
-  } else if (rating === "good") {
+  } else {
     if (state.repetitions === 0) intervalDays = 2;
     else if (state.repetitions === 1) intervalDays = 4;
     else intervalDays = roundedDays(state.intervalDays * state.ease);
-  } else {
-    intervalDays =
-      state.repetitions === 0
-        ? 4
-        : roundedDays(state.intervalDays * (state.ease + 0.15) * 1.3);
   }
 
   return {
@@ -60,10 +55,7 @@ export function applyRating(
     ...state,
     dueAt: preview.dueAt.toISOString(),
     intervalDays: preview.intervalDays,
-    ease: Math.min(
-      3,
-      Math.max(1.3, state.ease + (rating === "easy" ? 0.15 : failed ? -0.2 : 0)),
-    ),
+    ease: Math.max(1.3, state.ease + (failed ? -0.2 : 0)),
     repetitions: failed ? 0 : state.repetitions + 1,
     lapses: state.lapses + (failed ? 1 : 0),
     lastReviewedAt: now.toISOString(),

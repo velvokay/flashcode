@@ -32,16 +32,18 @@ describe("scheduler", () => {
     expect(next.intervalDays).toBe(2);
   });
 
-  it("increases the interval and ease after an easy recall", () => {
+  it("schedules assisted solutions sooner than independent solutions", () => {
     const state = {
       ...createReviewState("question", now),
       repetitions: 3,
       intervalDays: 10,
     };
-    const next = applyRating(state, "easy", now);
+    const helped = applyRating(state, "hard", now);
+    const independent = applyRating(state, "good", now);
 
-    expect(next.intervalDays).toBe(34);
-    expect(next.ease).toBeCloseTo(2.65);
+    expect(helped.intervalDays).toBe(12);
+    expect(independent.intervalDays).toBe(25);
+    expect(helped.ease).toBeCloseTo(2.5);
   });
 
   it("uses clear relative due labels", () => {

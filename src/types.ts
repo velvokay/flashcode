@@ -1,6 +1,7 @@
 export type Difficulty = "Easy" | "Medium" | "Hard";
 
-export type Rating = "again" | "hard" | "good" | "easy";
+export type Rating = "again" | "hard" | "good";
+export type HistoricalRating = Rating | "easy";
 
 export type CodeLanguage = "typescript" | "javascript" | "python" | "cpp" | "java";
 
@@ -35,7 +36,7 @@ export interface ReviewState {
 export interface ReviewEvent {
   id: string;
   questionId: string;
-  rating: Rating;
+  rating: HistoricalRating;
   reviewedAt: string;
   nextDueAt: string;
 }

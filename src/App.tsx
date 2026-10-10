@@ -15,8 +15,7 @@ type View = "today" | "plans" | "library" | "review";
 const ratingLabels: Record<Rating, string> = {
   again: "Couldn't solve",
   hard: "Needed help",
-  good: "Solved it",
-  easy: "Solved easily",
+  good: "Solved independently",
 };
 
 const SESSION_LIMIT = 10;
@@ -342,8 +341,8 @@ function ReviewSession({
         return;
       }
 
-      if (showRating && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(event.code)) {
-        const ratings: Rating[] = ["again", "hard", "good", "easy"];
+      if (showRating && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
+        const ratings: Rating[] = ["again", "hard", "good"];
         rate(ratings[Number(event.code.slice(-1)) - 1]);
       }
     };
@@ -374,12 +373,12 @@ function ReviewSession({
   }
 
   const reviewState = data.reviews[question.id];
-  const ratings: Rating[] = ["again", "hard", "good", "easy"];
+  const ratings: Rating[] = ["again", "hard", "good"];
 
   return (
     <main className="review-layout page-shell">
       <SessionProgress total={queue.length} current={current} />
-      <article className="review-card">
+      <article className={`review-card ${showRating ? "review-open" : ""}`}>
         <div className="focus-edge" aria-hidden="true" />
         <div className="workbench">
           <section className="problem-panel">
@@ -414,37 +413,42 @@ function ReviewSession({
           aria-hidden={!showRating}
           aria-labelledby="review-sheet-title"
         >
-          <div className="review-sheet-header">
-            <h2 id="review-sheet-title">How did it go?</h2>
-            <button
-              className="icon-button review-sheet-close"
-              id="close-review-sheet"
-              onClick={closeRating}
-              aria-label="Close review"
-            >
-              <Icon name="x" />
-            </button>
-          </div>
+          <button
+            className="icon-button review-sheet-close"
+            id="close-review-sheet"
+            onClick={closeRating}
+            aria-label="Close review"
+          >
+            <Icon name="x" />
+          </button>
 
-          <div className="rating-grid">
-            {ratings.map((rating, index) => {
-              const preview = previewSchedule(reviewState, rating);
-              const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
-              return (
-                <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
-                  <kbd className="rating-key">{index + 1}</kbd>
-                  <strong>{ratingLabels[rating]}</strong>
-                  <small>{nextReview}</small>
+          <div className="review-sheet-main">
+            <div className="review-sheet-intro">
+              <h2 id="review-sheet-title">How did it go?</h2>
+              {question.approach.length > 0 && (
+                <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
+                  {showSteps ? "Hide key steps" : "View key steps"}
                 </button>
-              );
-            })}
+              )}
+            </div>
+
+            <div className="rating-grid">
+              {ratings.map((rating, index) => {
+                const preview = previewSchedule(reviewState, rating);
+                const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
+                return (
+                  <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
+                    <kbd className="rating-key">{index + 1}</kbd>
+                    <strong>{ratingLabels[rating]}</strong>
+                    <small>{nextReview}</small>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {question.approach.length > 0 && (
-            <div className="review-sheet-steps">
-              <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
-                {showSteps ? "Hide key steps" : "View key steps"}
-              </button>
+            <div className={`review-sheet-steps ${showSteps ? "open" : ""}`}>
               <div className={`answer-copy ${showSteps ? "open" : ""}`} id="key-steps" aria-hidden={!showSteps}>
                 <ol>
                   {question.approach.map((step) => <li key={step}>{step}</li>)}
