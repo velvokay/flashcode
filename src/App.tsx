@@ -7,7 +7,8 @@ import {
   previewSchedule,
 } from "./lib/scheduler";
 import { clearData, createInitialData, loadData, saveData } from "./lib/storage";
-import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./data/studyPlans";
+import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./lib/studyPlans";
+import { dateKey, getDailyReviewCounts, getStreaks } from "./lib/activity";
 import {
   buildCategoryQueue,
   buildStudyQueue,
@@ -16,9 +17,18 @@ import {
   getQueueCounts,
   isStudied,
 } from "./lib/studyPath";
-import type { AppData, Difficulty, Question, Rating, StudyPlan } from "./types";
+import { ROADMAP_EDGES, ROADMAP_POSITIONS } from "./lib/roadmap";
+import { createStudySession } from "./lib/session";
+import type { CategoryProgress } from "./lib/studyPath";
+import type { AppData, Difficulty, Question, Rating, ReviewEvent, StudyPlan, StudySession } from "./types";
 
-type View = "today" | "path" | "library" | "review";
+type View = "today" | "roadmap" | "library" | "review";
+
+interface StudyMotion {
+  category: string;
+  calendarDate?: string;
+  token: number;
+}
 
 const ratingLabels: Record<Rating, string> = {
   again: "Couldn't solve",
@@ -28,9 +38,10 @@ const ratingLabels: Record<Rating, string> = {
 
 const SESSION_LIMIT = 10;
 
-function Icon({ name, size = 18 }: { name: "arrow" | "external" | "plus" | "search" | "x"; size?: number }) {
+function Icon({ name, size = 18 }: { name: "arrow" | "back" | "external" | "plus" | "search" | "x"; size?: number }) {
   const paths = {
     arrow: <path d="m13 5 7 7-7 7M20 12H4" />,
+    back: <path d="m11 5-7 7 7 7M4 12h16" />,
     external: <path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
@@ -80,11 +91,11 @@ function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => 
             Today
           </button>
           <button
-            className={view === "path" ? "active" : ""}
-            onClick={() => onNavigate("path")}
-            aria-current={view === "path" ? "page" : undefined}
+            className={view === "roadmap" ? "active" : ""}
+            onClick={() => onNavigate("roadmap")}
+            aria-current={view === "roadmap" ? "page" : undefined}
           >
-            Path
+            Roadmap
           </button>
           <button
             className={view === "library" ? "active" : ""}
@@ -95,8 +106,9 @@ function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => 
           </button>
         </nav>
       ) : (
-        <button className="quiet-button" onClick={() => onNavigate("today")}>
-          End session
+        <button className="quiet-button back-to-today" onClick={() => onNavigate("today")}>
+          <Icon name="back" size={16} />
+          <span>Today</span>
         </button>
       )}
     </header>
@@ -165,6 +177,7 @@ function TodayView({
   plan,
   questions,
   queue,
+  session,
   onStart,
   onChoosePlan,
 }: {
@@ -172,6 +185,7 @@ function TodayView({
   plan: StudyPlan;
   questions: Question[];
   queue: Question[];
+  session: StudySession | null;
   onStart: () => void;
   onChoosePlan: () => void;
 }) {
@@ -198,7 +212,7 @@ function TodayView({
           <button
             className="plan-context"
             onClick={onChoosePlan}
-            aria-label={`Open ${plan.name} study path`}
+            aria-label={`Open ${plan.name} roadmap`}
           >
             <strong>{plan.name}</strong>
             <Icon name="arrow" size={15} />
@@ -207,7 +221,11 @@ function TodayView({
         </div>
         <div className="hero-content">
           <h1>
-            {queue.length > 0 ? `${queue.length} to study` : "You're caught up"}
+            {queue.length > 0
+              ? session
+                ? `${queue.length} left in session`
+                : `${queue.length} to study`
+              : "You're caught up"}
           </h1>
           {queue.length === 0 && (
             <p className="lede">
@@ -218,7 +236,7 @@ function TodayView({
           )}
           <div className="hero-action">
             <button className="primary-button" onClick={onStart} disabled={queue.length === 0}>
-              <span>{queue.length > 0 ? "Start" : "Nothing scheduled"}</span>
+              <span>{queue.length > 0 ? (session ? "Continue" : "Start") : "Nothing scheduled"}</span>
               {queue.length > 0 && <Icon name="arrow" />}
             </button>
             {queue.length > 0 && <span className="time-note">~{Math.max(5, queue.length * 3)} min</span>}
@@ -264,20 +282,323 @@ function TodayView({
   );
 }
 
-function PathView({
+function CategoryRoute({
+  progress,
+  currentCategory,
+  highlightCategory,
+  onSelectCategory,
+}: {
+  progress: CategoryProgress[];
+  currentCategory: string | null;
+  highlightCategory?: string;
+  onSelectCategory: (category: string) => void;
+}) {
+  return (
+    <section className="category-path" aria-label="Categories">
+      {progress.map((category) => {
+        const current = category.name === currentCategory;
+        return (
+          <article
+            className={`category-row ${current ? "current" : ""} ${category.name === highlightCategory ? "updated" : ""}`}
+            key={category.name}
+          >
+            <div className="path-station" aria-hidden="true"><span /></div>
+            <div className="category-copy">
+              <div className="category-title-line">
+                <h2>
+                  <button className="category-name-button" onClick={() => onSelectCategory(category.name)}>
+                    {category.name}
+                  </button>
+                </h2>
+                {current && <span className="current-label">Next</span>}
+              </div>
+              <p>{category.studied} of {category.total} attempted</p>
+            </div>
+            <div className="category-progress">
+              <ReadinessBar
+                current={category.current}
+                due={category.due}
+                newCount={category.newCount}
+                total={category.total}
+                label={`${category.name} readiness`}
+              />
+              <ReadinessCounts
+                current={category.current}
+                due={category.due}
+                newCount={category.newCount}
+                compact
+              />
+            </div>
+            <button className="category-action" onClick={() => onSelectCategory(category.name)}>
+              View problems
+            </button>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function RoadmapGraph({
+  progress,
+  currentCategory,
+  highlightCategory,
+  onSelectCategory,
+}: {
+  progress: CategoryProgress[];
+  currentCategory: string | null;
+  highlightCategory?: string;
+  onSelectCategory: (category: string) => void;
+}) {
+  const visibleNames = new Set(progress.map((category) => category.name));
+
+  return (
+    <section className="roadmap-graph" aria-label="Category roadmap">
+      <div className="roadmap-canvas">
+        <svg className="roadmap-connectors" viewBox="0 0 900 1000" aria-hidden="true">
+          {ROADMAP_EDGES.filter(([from, to]) => visibleNames.has(from) && visibleNames.has(to)).map(([from, to]) => {
+            const source = ROADMAP_POSITIONS[from];
+            const target = ROADMAP_POSITIONS[to];
+            const middle = (source.y + target.y) / 2;
+            return (
+              <path
+                key={`${from}-${to}`}
+                className={highlightCategory && (from === highlightCategory || to === highlightCategory) ? "updated" : ""}
+                d={`M ${source.x} ${source.y + 42} C ${source.x} ${middle}, ${target.x} ${middle}, ${target.x} ${target.y - 42}`}
+              />
+            );
+          })}
+        </svg>
+
+        {progress.map((category) => {
+          const position = ROADMAP_POSITIONS[category.name];
+          if (!position) return null;
+          const current = category.name === currentCategory;
+          return (
+            <button
+              type="button"
+              key={category.name}
+              className={`roadmap-node ${current ? "current" : ""} ${category.name === highlightCategory ? "updated" : ""}`}
+              style={{ left: position.x, top: position.y }}
+              onClick={() => onSelectCategory(category.name)}
+              aria-label={`View ${category.name}. ${category.current} current, ${category.due} due, ${category.newCount} new.`}
+            >
+              <span className="roadmap-node-title">{category.name}</span>
+              <ReadinessBar
+                current={category.current}
+                due={category.due}
+                newCount={category.newCount}
+                total={category.total}
+                label={`${category.name} readiness`}
+              />
+              <ReadinessCounts
+                current={category.current}
+                due={category.due}
+                newCount={category.newCount}
+                compact
+              />
+              {current && <span className="roadmap-next">Next</span>}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function CategoryDetails({
+  category,
+  questions,
+  reviews,
+  onClose,
+  onStart,
+}: {
+  category: CategoryProgress;
+  questions: Question[];
+  reviews: AppData["reviews"];
+  onClose: () => void;
+  onStart: () => void;
+}) {
+  const now = new Date();
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="category-details-layer" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <aside className="category-details" role="dialog" aria-modal="true" aria-labelledby="category-details-title">
+        <header className="category-details-header">
+          <div>
+            <span className="path-kicker">Category</span>
+            <h2 id="category-details-title">{category.name}</h2>
+            <p>{category.studied} of {category.total} attempted</p>
+          </div>
+          <button className="icon-button category-details-close" onClick={onClose} aria-label="Close category details" autoFocus>
+            <Icon name="x" size={20} />
+          </button>
+        </header>
+
+        <section className="category-details-readiness" aria-label={`${category.name} readiness`}>
+          <ReadinessBar
+            current={category.current}
+            due={category.due}
+            newCount={category.newCount}
+            total={category.total}
+            label={`${category.name} readiness`}
+          />
+          <ReadinessCounts
+            current={category.current}
+            due={category.due}
+            newCount={category.newCount}
+          />
+          <button className="primary-button" onClick={onStart} disabled={category.available === 0}>
+            {category.available > 0 ? "Study this category" : "Nothing to review"}
+          </button>
+        </section>
+
+        <section className="category-problems" aria-labelledby="category-problems-title">
+          <div className="category-problems-heading">
+            <h3 id="category-problems-title">Problems</h3>
+            <span>{questions.length}</span>
+          </div>
+          <div className="category-problem-list">
+            {questions.map((question) => {
+              const review = reviews[question.id];
+              const status = !isStudied(review) ? "New" : isDue(review, now) ? "Review due" : "Current";
+              const statusClass = status === "Review due" ? "due" : status.toLowerCase();
+              return (
+                <article className="category-problem-row" key={question.id}>
+                  <span className={`problem-status ${statusClass}`}>{status}</span>
+                  <div className="category-problem-title">
+                    <h4>{question.title}</h4>
+                    {review && !isDue(review, now) && <span>Next review {formatDueDate(review.dueAt, now).toLowerCase()}</span>}
+                  </div>
+                  <span className={`difficulty difficulty-${question.difficulty.toLowerCase()}`}>{question.difficulty}</span>
+                  <a href={question.url} target="_blank" rel="noreferrer" aria-label={`Open ${question.title} on LeetCode`}>
+                    <Icon name="external" size={17} />
+                  </a>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+function ActivityPanel({ history, highlightDate }: { history: ReviewEvent[]; highlightDate?: string }) {
+  const now = new Date();
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
+  const counts = useMemo(() => getDailyReviewCounts(history), [history]);
+  const streaks = useMemo(() => getStreaks(history, now), [history]);
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
+  const leadingDays = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLabel = visibleMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const calendarCells = [
+    ...Array.from({ length: leadingDays }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  const dayKey = (day: number) => {
+    const monthValue = String(month + 1).padStart(2, "0");
+    return `${year}-${monthValue}-${String(day).padStart(2, "0")}`;
+  };
+  const intensity = (count: number) => {
+    if (count === 0) return 0;
+    if (count < 3) return 1;
+    if (count < 6) return 2;
+    if (count < 10) return 3;
+    return 4;
+  };
+
+  return (
+    <aside className="activity-panel" aria-label="Study activity">
+      <div className="activity-heading">
+        <h2>Activity</h2>
+        <div className="month-controls">
+          <button
+            className="icon-button previous-month"
+            onClick={() => setVisibleMonth(new Date(year, month - 1, 1))}
+            aria-label="Previous month"
+          >
+            <Icon name="arrow" size={16} />
+          </button>
+          <strong>{monthLabel}</strong>
+          <button
+            className="icon-button"
+            onClick={() => setVisibleMonth(new Date(year, month + 1, 1))}
+            aria-label="Next month"
+          >
+            <Icon name="arrow" size={16} />
+          </button>
+        </div>
+      </div>
+
+      <div className="calendar-weekdays" aria-hidden="true">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+      </div>
+      <div className="activity-calendar" role="grid" aria-label={monthLabel}>
+        {calendarCells.map((day, index) => {
+          if (day === null) return <span className="calendar-blank" key={`blank-${index}`} aria-hidden="true" />;
+          const count = counts.get(dayKey(day)) ?? 0;
+          const highlighted = dayKey(day) === highlightDate;
+          const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+          return (
+            <span
+              key={day}
+              className={`calendar-day intensity-${intensity(count)} ${isToday ? "today" : ""} ${highlighted ? "first-review" : ""}`}
+              title={`${count} ${count === 1 ? "review" : "reviews"}`}
+              role="gridcell"
+              aria-label={`${visibleMonth.toLocaleDateString(undefined, { month: "long" })} ${day}: ${count} ${count === 1 ? "review" : "reviews"}`}
+            >
+              {day}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="streak-row">
+        <div><strong>{streaks.current}</strong><span>Current streak</span></div>
+        <div><strong>{streaks.longest}</strong><span>Longest streak</span></div>
+      </div>
+      <p className="streak-note">A study day includes at least one rated question.</p>
+    </aside>
+  );
+}
+
+function RoadmapView({
   data,
   plan,
   questions,
+  motion,
   onSelect,
   onStartCategory,
+  onMotionComplete,
 }: {
   data: AppData;
   plan: StudyPlan;
   questions: Question[];
+  motion: StudyMotion | null;
   onSelect: (planId: string) => void;
   onStartCategory: (category: string) => void;
+  onMotionComplete: () => void;
 }) {
   const [choosingPlan, setChoosingPlan] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const now = new Date();
   const progress = getCategoryProgress(questions, data.reviews, now);
   const currentCategory = getCurrentCategory(questions, data.reviews, now);
@@ -285,12 +606,24 @@ function PathView({
   const totalCurrent = progress.reduce((sum, category) => sum + category.current, 0);
   const totalDue = progress.reduce((sum, category) => sum + category.due, 0);
   const totalNew = progress.reduce((sum, category) => sum + category.newCount, 0);
+  const canShowGraph = progress.length >= 10 && progress.every((category) => ROADMAP_POSITIONS[category.name]);
+  const selectedProgress = progress.find((category) => category.name === selectedCategory);
+  const selectedQuestions = selectedCategory
+    ? questions.filter((question) => question.topic === selectedCategory)
+    : [];
+
+  useEffect(() => {
+    if (!motion) return;
+    const timer = window.setTimeout(onMotionComplete, 1100);
+    return () => window.clearTimeout(timer);
+  }, [motion?.token]);
 
   return (
+    <>
     <main className="page-shell path-page">
       <section className="path-heading">
         <div>
-          <span className="path-kicker">Study path</span>
+          <span className="path-kicker">Roadmap</span>
           <h1>{plan.name}</h1>
           <p>{totalStudied} of {questions.length} attempted</p>
         </div>
@@ -325,7 +658,7 @@ function PathView({
                 </div>
                 <button
                   className={selected ? "selected-plan-button" : "quiet-plan-button"}
-                  onClick={() => { onSelect(option.id); setChoosingPlan(false); }}
+                  onClick={() => { onSelect(option.id); setChoosingPlan(false); setSelectedCategory(null); }}
                   disabled={selected}
                 >
                   {selected ? "Current" : "Select"}
@@ -336,51 +669,59 @@ function PathView({
         </section>
       )}
 
-      <section className="category-path" aria-label={`${plan.name} categories`}>
-        {progress.map((category) => {
-          const current = category.name === currentCategory;
-          return (
-            <article className={`category-row ${current ? "current" : ""}`} key={category.name}>
-              <div className="path-station" aria-hidden="true"><span /></div>
-              <div className="category-copy">
-                <div className="category-title-line">
-                  <h2>{category.name}</h2>
-                  {current && <span className="current-label">Next</span>}
-                </div>
-                <p>{category.studied} of {category.total} attempted</p>
-              </div>
-              <div className="category-progress">
-                <ReadinessBar
-                  current={category.current}
-                  due={category.due}
-                  newCount={category.newCount}
-                  total={category.total}
-                  label={`${category.name} readiness`}
-                />
-                <ReadinessCounts
-                  current={category.current}
-                  due={category.due}
-                  newCount={category.newCount}
-                  compact
+      <div className={`roadmap-layout ${canShowGraph ? "has-graph" : ""}`}>
+        <div className="roadmap-content">
+          {canShowGraph ? (
+            <>
+              <RoadmapGraph
+                progress={progress}
+                currentCategory={currentCategory}
+                highlightCategory={motion?.category}
+                onSelectCategory={setSelectedCategory}
+              />
+              <div className="roadmap-list-fallback">
+                <CategoryRoute
+                  progress={progress}
+                  currentCategory={currentCategory}
+                  highlightCategory={motion?.category}
+                  onSelectCategory={setSelectedCategory}
                 />
               </div>
-              {category.available > 0 && (
-                <button
-                  className="category-action"
-                  onClick={() => onStartCategory(category.name)}
-                >
-                  Study category
-                </button>
-              )}
-            </article>
-          );
-        })}
-      </section>
+            </>
+          ) : (
+            <CategoryRoute
+              progress={progress}
+              currentCategory={currentCategory}
+              highlightCategory={motion?.category}
+              onSelectCategory={setSelectedCategory}
+            />
+          )}
+        </div>
+        <ActivityPanel history={data.history} highlightDate={motion?.calendarDate} />
+      </div>
     </main>
+    {selectedProgress && (
+      <CategoryDetails
+        category={selectedProgress}
+        questions={selectedQuestions}
+        reviews={data.reviews}
+        onClose={() => setSelectedCategory(null)}
+        onStart={() => onStartCategory(selectedProgress.name)}
+      />
+    )}
+    </>
   );
 }
 
-function SessionProgress({ total, current }: { total: number; current: number }) {
+function SessionProgress({
+  total,
+  current,
+  departing,
+}: {
+  total: number;
+  current: number;
+  departing: boolean;
+}) {
   return (
     <div
       className="session-progress"
@@ -395,8 +736,12 @@ function SessionProgress({ total, current }: { total: number; current: number })
         {Array.from({ length: total }).map((_, index) => (
           <span
             key={index}
-            className={`progress-segment ${index < current ? "complete" : ""} ${index === current ? "current" : ""}`}
-          />
+            className={`progress-segment ${index < current ? "complete" : ""} ${index === current ? "current" : ""} ${index === current && departing ? "departing" : ""}`}
+          >
+            {index === current && departing && (
+              <span className="progress-traveler" />
+            )}
+          </span>
         ))}
       </div>
     </div>
@@ -407,27 +752,37 @@ function ReviewSession({
   data,
   planQuestions,
   queue,
+  initialIndex,
   onRate,
   onFinish,
 }: {
   data: AppData;
   planQuestions: Question[];
   queue: string[];
-  onRate: (questionId: string, rating: Rating) => void;
+  initialIndex: number;
+  onRate: (questionId: string, rating: Rating, nextIndex: number) => void;
   onFinish: () => void;
 }) {
-  const [current, setCurrent] = useState(0);
+  const [current, setCurrent] = useState(initialIndex);
   const [showSteps, setShowSteps] = useState(false);
   const [showRating, setShowRating] = useState(false);
+  const [departingRating, setDepartingRating] = useState<Rating | null>(null);
   const question = data.questions.find((item) => item.id === queue[current]);
   const finished = current >= queue.length || !question;
 
-  const rate = (rating: Rating) => {
-    if (!showRating || !question) return;
-    onRate(question.id, rating);
+  const chooseRating = (rating: Rating) => {
+    if (!showRating || !question || departingRating) return;
+    setDepartingRating(rating);
+  };
+
+  const completeRating = () => {
+    if (!departingRating || !question) return;
+    const nextIndex = current + 1;
+    onRate(question.id, departingRating, nextIndex);
     setShowSteps(false);
     setShowRating(false);
-    setCurrent((value) => value + 1);
+    setCurrent(nextIndex);
+    setDepartingRating(null);
     window.scrollTo({ top: 0, behavior: "auto" });
   };
 
@@ -459,19 +814,26 @@ function ReviewSession({
   };
 
   useEffect(() => {
+    if (!departingRating) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(completeRating, reducedMotion ? 20 : 320);
+    return () => window.clearTimeout(timer);
+  }, [departingRating]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       const typing = target.tagName === "TEXTAREA" || target.tagName === "INPUT";
       if (typing) return;
 
-      if (showRating && event.key === "Escape") {
+      if (showRating && !departingRating && event.key === "Escape") {
         closeRating();
         return;
       }
 
-      if (showRating && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
+      if (showRating && !departingRating && ["Digit1", "Digit2", "Digit3"].includes(event.code)) {
         const ratings: Rating[] = ["again", "hard", "good"];
-        rate(ratings[Number(event.code.slice(-1)) - 1]);
+        chooseRating(ratings[Number(event.code.slice(-1)) - 1]);
       }
     };
 
@@ -505,8 +867,12 @@ function ReviewSession({
 
   return (
     <main className="review-layout page-shell">
-      <SessionProgress total={queue.length} current={current} />
-      <article className={`review-card ${showRating ? "review-open" : ""}`}>
+      <SessionProgress
+        total={queue.length}
+        current={current}
+        departing={Boolean(departingRating)}
+      />
+      <article key={question.id} className={`review-card question-arrival ${showRating ? "review-open" : ""}`} aria-busy={Boolean(departingRating)}>
         <div className="focus-edge" aria-hidden="true" />
         <div className="workbench">
           <section className="problem-panel">
@@ -546,6 +912,7 @@ function ReviewSession({
             id="close-review-sheet"
             onClick={closeRating}
             aria-label="Close review"
+            disabled={Boolean(departingRating)}
           >
             <Icon name="x" />
           </button>
@@ -554,7 +921,12 @@ function ReviewSession({
             <div className="review-sheet-intro">
               <h2 id="review-sheet-title">How did it go?</h2>
               {question.approach.length > 0 && (
-                <button className="quiet-button approach-button" onClick={toggleSteps} aria-expanded={showSteps}>
+                <button
+                  className="quiet-button approach-button"
+                  onClick={toggleSteps}
+                  aria-expanded={showSteps}
+                  disabled={Boolean(departingRating)}
+                >
                   {showSteps ? "Hide key steps" : "View key steps"}
                 </button>
               )}
@@ -565,7 +937,12 @@ function ReviewSession({
                 const preview = previewSchedule(reviewState, rating);
                 const nextReview = preview.label === "1 day" ? "Review tomorrow" : `Review in ${preview.label}`;
                 return (
-                  <button key={rating} className={`rating-button rating-${rating}`} onClick={() => rate(rating)}>
+                  <button
+                    key={rating}
+                    className={`rating-button rating-${rating} ${departingRating === rating ? "selected" : ""}`}
+                    onClick={() => chooseRating(rating)}
+                    disabled={Boolean(departingRating)}
+                  >
                     <kbd className="rating-key">{index + 1}</kbd>
                     <strong>{ratingLabels[rating]}</strong>
                     <small>{nextReview}</small>
@@ -758,34 +1135,85 @@ function LibraryView({
 export default function App() {
   const [data, setData] = useState<AppData>(() => loadData());
   const [view, setView] = useState<View>("today");
-  const [queue, setQueue] = useState<string[]>([]);
+  const [queue, setQueue] = useState<string[]>(() => data.activeSession?.questionIds ?? []);
+  const [studyMotion, setStudyMotion] = useState<StudyMotion | null>(null);
   const activePlan = getStudyPlan(data.activePlanId);
   const activeQuestions = useMemo(
     () => getQuestionsForPlan(data.activePlanId, data.questions),
     [data.activePlanId, data.questions],
   );
   const todayQueue = buildStudyQueue(activeQuestions, data.reviews, new Date(), SESSION_LIMIT);
+  const questionById = useMemo(
+    () => new Map(data.questions.map((question) => [question.id, question])),
+    [data.questions],
+  );
+  const sessionQueue = data.activeSession
+    ? data.activeSession.questionIds
+        .slice(data.activeSession.currentIndex)
+        .map((questionId) => questionById.get(questionId))
+        .filter((question): question is Question => Boolean(question))
+    : null;
+  const displayedQueue = sessionQueue ?? todayQueue;
 
   useEffect(() => saveData(data), [data]);
 
   const startReview = () => {
-    setQueue(todayQueue.map((question) => question.id));
+    if (data.activeSession) {
+      setQueue(data.activeSession.questionIds);
+      setView("review");
+      return;
+    }
+
+    const questionIds = todayQueue.map((question) => question.id);
+    if (questionIds.length === 0) return;
+    const activeSession = createStudySession(questionIds, data.activePlanId, "general");
+    setData((current) => ({ ...current, activeSession }));
+    setQueue(questionIds);
     setView("review");
   };
 
   const startCategory = (category: string) => {
     const focused = buildCategoryQueue(activeQuestions, data.reviews, category, new Date(), SESSION_LIMIT);
     if (focused.length === 0) return;
-    setQueue(focused.map((question) => question.id));
+    const questionIds = focused.map((question) => question.id);
+    const activeSession = createStudySession(
+      questionIds,
+      data.activePlanId,
+      "category",
+      new Date(),
+      category,
+    );
+    setData((current) => ({ ...current, activeSession }));
+    setQueue(questionIds);
     setView("review");
   };
 
-  const rateQuestion = (questionId: string, rating: Rating) => {
+  const rateQuestion = (questionId: string, rating: Rating, nextIndex: number) => {
     const reviewedAt = new Date();
+    const ratedQuestion = data.questions.find((question) => question.id === questionId);
+    const reviewedDate = dateKey(reviewedAt);
+    const firstReviewOfDay = !data.history.some(
+      (event) => dateKey(new Date(event.reviewedAt)) === reviewedDate,
+    );
+
+    if (ratedQuestion) {
+      setStudyMotion((current) => ({
+        category: ratedQuestion.topic,
+        calendarDate: firstReviewOfDay ? reviewedDate : current?.calendarDate,
+        token: (current?.token ?? 0) + 1,
+      }));
+    }
+
     setData((current) => {
       const nextState = applyRating(current.reviews[questionId], rating, reviewedAt);
+      const activeSession = current.activeSession
+        ? nextIndex >= current.activeSession.questionIds.length
+          ? null
+          : { ...current.activeSession, currentIndex: nextIndex }
+        : null;
       return {
         ...current,
+        activeSession,
         reviews: { ...current.reviews, [questionId]: nextState },
         history: [
           ...current.history,
@@ -821,6 +1249,9 @@ export default function App() {
         reviews,
         history: current.history.filter((event) => event.questionId !== questionId),
         drafts,
+        activeSession: current.activeSession?.questionIds.includes(questionId)
+          ? null
+          : current.activeSession,
       };
     });
   };
@@ -828,6 +1259,8 @@ export default function App() {
   const reset = () => {
     clearData();
     setData(createInitialData());
+    setQueue([]);
+    setStudyMotion(null);
   };
 
   return (
@@ -838,20 +1271,24 @@ export default function App() {
           data={data}
           plan={activePlan}
           questions={activeQuestions}
-          queue={todayQueue}
+          queue={displayedQueue}
+          session={data.activeSession}
           onStart={startReview}
-          onChoosePlan={() => setView("path")}
+          onChoosePlan={() => setView("roadmap")}
         />
       )}
-      {view === "path" && (
-        <PathView
+      {view === "roadmap" && (
+        <RoadmapView
           data={data}
           plan={activePlan}
           questions={activeQuestions}
+          motion={studyMotion}
           onSelect={(activePlanId) => {
-            setData((current) => ({ ...current, activePlanId }));
+            setData((current) => ({ ...current, activePlanId, activeSession: null }));
+            setQueue([]);
           }}
           onStartCategory={startCategory}
+          onMotionComplete={() => setStudyMotion(null)}
         />
       )}
       {view === "library" && (
@@ -861,7 +1298,8 @@ export default function App() {
           questions={activeQuestions}
           onAdd={(question) => {
             addQuestion(question);
-            setData((current) => ({ ...current, activePlanId: "personal" }));
+            setData((current) => ({ ...current, activePlanId: "personal", activeSession: null }));
+            setQueue([]);
           }}
           onRemove={removeQuestion}
           onReset={reset}
@@ -872,6 +1310,7 @@ export default function App() {
           data={data}
           planQuestions={activeQuestions}
           queue={queue}
+          initialIndex={data.activeSession?.currentIndex ?? 0}
           onRate={rateQuestion}
           onFinish={() => setView("today")}
         />

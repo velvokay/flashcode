@@ -7,6 +7,7 @@ import {
   getCategoryProgress,
   getCurrentCategory,
 } from "./studyPath";
+import { ROADMAP_EDGES, ROADMAP_POSITIONS } from "./roadmap";
 
 const now = new Date("2026-10-09T12:00:00.000Z");
 
@@ -100,5 +101,34 @@ describe("study path queues", () => {
 
     expect(getCurrentCategory(questions, reviews, now)).toBeNull();
     expect(getCategoryProgress(questions, reviews, now).every((category) => category.current === 1)).toBe(true);
+  });
+});
+
+describe("roadmap structure", () => {
+  it("positions every roadmap category and connects only known categories", () => {
+    const positioned = new Set(Object.keys(ROADMAP_POSITIONS));
+    expect(positioned.size).toBe(18);
+    for (const [from, to] of ROADMAP_EDGES) {
+      expect(positioned.has(from)).toBe(true);
+      expect(positioned.has(to)).toBe(true);
+    }
+  });
+
+  it("keeps roadmap nodes from overlapping", () => {
+    const positions = Object.entries(ROADMAP_POSITIONS);
+    const nodeWidthWithGutter = 204;
+    const nodeHeightWithGutter = 94;
+
+    for (let firstIndex = 0; firstIndex < positions.length; firstIndex += 1) {
+      const [firstName, first] = positions[firstIndex];
+
+      for (let secondIndex = firstIndex + 1; secondIndex < positions.length; secondIndex += 1) {
+        const [secondName, second] = positions[secondIndex];
+        const overlapsHorizontally = Math.abs(first.x - second.x) < nodeWidthWithGutter;
+        const overlapsVertically = Math.abs(first.y - second.y) < nodeHeightWithGutter;
+
+        expect(overlapsHorizontally && overlapsVertically, `${firstName} overlaps ${secondName}`).toBe(false);
+      }
+    }
   });
 });

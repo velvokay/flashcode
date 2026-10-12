@@ -41,18 +41,30 @@ export interface ReviewEvent {
   nextDueAt: string;
 }
 
+export type StudySessionKind = "general" | "category";
+
+export interface StudySession {
+  questionIds: string[];
+  currentIndex: number;
+  planId: string;
+  kind: StudySessionKind;
+  category?: string;
+  startedAt: string;
+}
+
 export interface AppData {
   questions: Question[];
   reviews: Record<string, ReviewState>;
   history: ReviewEvent[];
   drafts: Record<string, CodeDraft>;
   activePlanId: string;
+  activeSession: StudySession | null;
 }
 
 export interface StudyPlan {
   id: string;
   name: string;
   sourceUrl?: string;
-  questionUrls?: string[];
+  questionIds?: string[];
   custom?: boolean;
 }

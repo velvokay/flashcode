@@ -1,7 +1,8 @@
-import { seedQuestions } from "../data/questions";
-import { DEFAULT_PLAN_ID, studyPlans } from "../data/studyPlans";
+import { seedQuestions } from "./catalog";
+import { DEFAULT_PLAN_ID, studyPlans } from "./studyPlans";
 import type { AppData } from "../types";
-import { createReviewState } from "./scheduler";
+import { createReviewState, migrateLegacyReviewState } from "./scheduler";
+import { normalizeStudySession } from "./session";
 
 const STORAGE_KEY = "flashcode:data:v1";
 
@@ -14,6 +15,7 @@ export function createInitialData(now = new Date()): AppData {
     history: [],
     drafts: {},
     activePlanId: DEFAULT_PLAN_ID,
+    activeSession: null,
   };
 }
 
@@ -41,13 +43,20 @@ export function loadData(): AppData {
     ];
     const reviews = { ...parsed.reviews };
     for (const question of questions) {
-      reviews[question.id] ??= createReviewState(question.id);
+      reviews[question.id] = reviews[question.id]
+        ? migrateLegacyReviewState(reviews[question.id])
+        : createReviewState(question.id);
     }
     const activePlanId = studyPlans.some((plan) => plan.id === parsed.activePlanId)
       ? parsed.activePlanId
       : DEFAULT_PLAN_ID;
+    const activeSession = normalizeStudySession(
+      parsed.activeSession,
+      new Set(questions.map((question) => question.id)),
+      new Set(studyPlans.map((plan) => plan.id)),
+    );
 
-    return { ...parsed, questions, reviews, drafts: parsed.drafts ?? {}, activePlanId };
+    return { ...parsed, questions, reviews, drafts: parsed.drafts ?? {}, activePlanId, activeSession };
   } catch {
     return createInitialData();
   }

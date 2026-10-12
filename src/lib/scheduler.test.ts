@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { applyRating, createReviewState, formatDueDate, isDue, previewSchedule } from "./scheduler";
+import {
+  applyRating,
+  createReviewState,
+  formatDueDate,
+  isDue,
+  migrateLegacyReviewState,
+  previewSchedule,
+} from "./scheduler";
 
 const now = new Date("2026-10-09T12:00:00.000Z");
 
@@ -21,15 +28,18 @@ describe("scheduler", () => {
     expect(next.ease).toBeCloseTo(2.3);
   });
 
-  it("graduates a new question to two days after a good recall", () => {
+  it("graduates independent recalls through four and ten day intervals", () => {
     const state = createReviewState("question", now);
     const preview = previewSchedule(state, "good", now);
-    const next = applyRating(state, "good", now);
+    const first = applyRating(state, "good", now);
+    const second = applyRating(first, "good", now);
+    const third = applyRating(second, "good", now);
 
-    expect(preview.label).toBe("2 days");
-    expect(next.dueAt).toBe("2026-10-11T12:00:00.000Z");
-    expect(next.repetitions).toBe(1);
-    expect(next.intervalDays).toBe(2);
+    expect(preview.label).toBe("4 days");
+    expect(first.dueAt).toBe("2026-10-13T12:00:00.000Z");
+    expect(first.intervalDays).toBe(4);
+    expect(second.intervalDays).toBe(10);
+    expect(third.intervalDays).toBe(23);
   });
 
   it("schedules assisted solutions sooner than independent solutions", () => {
@@ -42,8 +52,40 @@ describe("scheduler", () => {
     const independent = applyRating(state, "good", now);
 
     expect(helped.intervalDays).toBe(12);
-    expect(independent.intervalDays).toBe(25);
+    expect(independent.intervalDays).toBe(23);
     expect(helped.ease).toBeCloseTo(2.5);
+  });
+
+  it("does not graduate a question when help was needed", () => {
+    const state = createReviewState("question", now);
+    const helped = applyRating(state, "hard", now);
+    const independent = applyRating(helped, "good", now);
+
+    expect(helped.intervalDays).toBe(1);
+    expect(helped.repetitions).toBe(0);
+    expect(independent.intervalDays).toBe(4);
+    expect(independent.repetitions).toBe(1);
+  });
+
+  it("migrates early successful reviews from the previous spacing", () => {
+    const first = migrateLegacyReviewState({
+      ...createReviewState("question", now),
+      repetitions: 1,
+      intervalDays: 2,
+      lastReviewedAt: now.toISOString(),
+      dueAt: "2026-10-11T12:00:00.000Z",
+    });
+    const second = migrateLegacyReviewState({
+      ...first,
+      repetitions: 2,
+      intervalDays: 4,
+      dueAt: "2026-10-13T12:00:00.000Z",
+    });
+
+    expect(first.intervalDays).toBe(4);
+    expect(first.dueAt).toBe("2026-10-13T12:00:00.000Z");
+    expect(second.intervalDays).toBe(10);
+    expect(second.dueAt).toBe("2026-10-19T12:00:00.000Z");
   });
 
   it("uses clear relative due labels", () => {

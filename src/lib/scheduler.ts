@@ -2,6 +2,9 @@ import type { Rating, ReviewState } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AGAIN_DELAY_MS = 8 * 60 * 1000;
+const FIRST_GOOD_INTERVAL_DAYS = 4;
+const SECOND_GOOD_INTERVAL_DAYS = 10;
+const MAX_GOOD_MULTIPLIER = 2.3;
 
 export interface SchedulePreview {
   label: string;
@@ -31,9 +34,9 @@ export function previewSchedule(
   if (rating === "hard") {
     intervalDays = state.repetitions === 0 ? 1 : roundedDays(state.intervalDays * 1.2);
   } else {
-    if (state.repetitions === 0) intervalDays = 2;
-    else if (state.repetitions === 1) intervalDays = 4;
-    else intervalDays = roundedDays(state.intervalDays * state.ease);
+    if (state.repetitions === 0) intervalDays = FIRST_GOOD_INTERVAL_DAYS;
+    else if (state.repetitions === 1) intervalDays = SECOND_GOOD_INTERVAL_DAYS;
+    else intervalDays = roundedDays(state.intervalDays * Math.min(state.ease, MAX_GOOD_MULTIPLIER));
   }
 
   return {
@@ -50,15 +53,31 @@ export function applyRating(
 ): ReviewState {
   const preview = previewSchedule(state, rating, now);
   const failed = rating === "again";
+  const assisted = rating === "hard";
 
   return {
     ...state,
     dueAt: preview.dueAt.toISOString(),
     intervalDays: preview.intervalDays,
     ease: Math.max(1.3, state.ease + (failed ? -0.2 : 0)),
-    repetitions: failed ? 0 : state.repetitions + 1,
+    repetitions: failed ? 0 : assisted ? state.repetitions : state.repetitions + 1,
     lapses: state.lapses + (failed ? 1 : 0),
     lastReviewedAt: now.toISOString(),
+  };
+}
+
+export function migrateLegacyReviewState(state: ReviewState): ReviewState {
+  if (!state.lastReviewedAt) return state;
+
+  let intervalDays: number | null = null;
+  if (state.repetitions === 1 && state.intervalDays === 2) intervalDays = FIRST_GOOD_INTERVAL_DAYS;
+  if (state.repetitions === 2 && state.intervalDays === 4) intervalDays = SECOND_GOOD_INTERVAL_DAYS;
+  if (intervalDays === null) return state;
+
+  return {
+    ...state,
+    intervalDays,
+    dueAt: new Date(new Date(state.lastReviewedAt).getTime() + intervalDays * DAY_MS).toISOString(),
   };
 }
 

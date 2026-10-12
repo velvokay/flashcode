@@ -1,17 +1,6 @@
 import type { Question, ReviewState } from "../types";
 import { isDue } from "./scheduler";
-
-export const CATEGORY_LEVELS = [
-  ["Arrays & Hashing"],
-  ["Two Pointers", "Stack"],
-  ["Linked List", "Binary Search", "Sliding Window"],
-  ["Trees"],
-  ["Tries", "Heap / Priority Queue", "Backtracking"],
-  ["Graphs"],
-  ["Advanced Graphs", "1-D Dynamic Programming"],
-  ["2-D Dynamic Programming", "Greedy", "Intervals"],
-  ["Math & Geometry", "Bit Manipulation"],
-] as const;
+import { CATEGORY_LEVELS } from "./roadmap";
 
 const CATEGORY_ORDER: readonly string[] = CATEGORY_LEVELS.flat();
 

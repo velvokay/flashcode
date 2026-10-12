@@ -32,6 +32,8 @@ The identity should be recognizable through its route line, station marker, inde
 
 Flashcode must communicate discipline without severity. It should feel designed for people who enjoy understanding systems, but it must never require them to understand the scheduling system before they can study.
 
+Activity history may show a calendar and neutral streak counts when they help users understand consistency. Never turn streaks into pressure, rewards, warnings, or a reason to override the review schedule.
+
 ## 2. Distinctive visual language
 
 ### Typography
@@ -118,9 +120,11 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 ### Motion
 
 - Motion communicates passage through the review sequence: the active station advances, the answer is revealed, and the next question replaces the current one.
-- Default transition duration: 140–180ms. Larger view changes may use 220ms.
+- Default transition duration: 140–180ms. A review departure may use 300–320ms so the station movement remains legible.
+- One-shot progress acknowledgements may run for up to 900ms, but must not block input or repeat after the state has been seen.
 - Use opacity and short directional translation of no more than 8px. No bounce, elastic easing, card flipping, confetti, or celebratory particle effects.
 - A rating selection should respond immediately; schedule details may update after the choice without blocking the next question.
+- Reuse the route-and-station language for rating departure, session completion, roadmap updates, and the first review of the day.
 - Respect `prefers-reduced-motion`; all meaning must survive without animation.
 
 ### Content voice

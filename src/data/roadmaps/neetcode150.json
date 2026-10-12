@@ -1,0 +1,226 @@
+{
+  "levels": [
+    [
+      "Arrays & Hashing"
+    ],
+    [
+      "Two Pointers",
+      "Stack"
+    ],
+    [
+      "Linked List",
+      "Binary Search",
+      "Sliding Window"
+    ],
+    [
+      "Trees"
+    ],
+    [
+      "Tries",
+      "Heap / Priority Queue",
+      "Backtracking"
+    ],
+    [
+      "Graphs"
+    ],
+    [
+      "Advanced Graphs",
+      "1-D Dynamic Programming"
+    ],
+    [
+      "2-D Dynamic Programming",
+      "Greedy",
+      "Intervals"
+    ],
+    [
+      "Math & Geometry",
+      "Bit Manipulation"
+    ]
+  ],
+  "categories": [
+    {
+      "name": "Arrays & Hashing",
+      "x": 450,
+      "y": 50
+    },
+    {
+      "name": "Two Pointers",
+      "x": 300,
+      "y": 165
+    },
+    {
+      "name": "Stack",
+      "x": 600,
+      "y": 165
+    },
+    {
+      "name": "Binary Search",
+      "x": 155,
+      "y": 285
+    },
+    {
+      "name": "Sliding Window",
+      "x": 390,
+      "y": 285
+    },
+    {
+      "name": "Linked List",
+      "x": 645,
+      "y": 285
+    },
+    {
+      "name": "Trees",
+      "x": 450,
+      "y": 405
+    },
+    {
+      "name": "Tries",
+      "x": 160,
+      "y": 525
+    },
+    {
+      "name": "Heap / Priority Queue",
+      "x": 390,
+      "y": 540
+    },
+    {
+      "name": "Backtracking",
+      "x": 660,
+      "y": 525
+    },
+    {
+      "name": "Intervals",
+      "x": 105,
+      "y": 680
+    },
+    {
+      "name": "Greedy",
+      "x": 335,
+      "y": 680
+    },
+    {
+      "name": "Graphs",
+      "x": 565,
+      "y": 680
+    },
+    {
+      "name": "1-D Dynamic Programming",
+      "x": 795,
+      "y": 680
+    },
+    {
+      "name": "Advanced Graphs",
+      "x": 350,
+      "y": 815
+    },
+    {
+      "name": "2-D Dynamic Programming",
+      "x": 560,
+      "y": 815
+    },
+    {
+      "name": "Bit Manipulation",
+      "x": 770,
+      "y": 815
+    },
+    {
+      "name": "Math & Geometry",
+      "x": 650,
+      "y": 945
+    }
+  ],
+  "edges": [
+    [
+      "Arrays & Hashing",
+      "Two Pointers"
+    ],
+    [
+      "Arrays & Hashing",
+      "Stack"
+    ],
+    [
+      "Two Pointers",
+      "Binary Search"
+    ],
+    [
+      "Two Pointers",
+      "Sliding Window"
+    ],
+    [
+      "Two Pointers",
+      "Linked List"
+    ],
+    [
+      "Stack",
+      "Linked List"
+    ],
+    [
+      "Binary Search",
+      "Trees"
+    ],
+    [
+      "Sliding Window",
+      "Trees"
+    ],
+    [
+      "Linked List",
+      "Trees"
+    ],
+    [
+      "Trees",
+      "Tries"
+    ],
+    [
+      "Trees",
+      "Heap / Priority Queue"
+    ],
+    [
+      "Trees",
+      "Backtracking"
+    ],
+    [
+      "Heap / Priority Queue",
+      "Intervals"
+    ],
+    [
+      "Heap / Priority Queue",
+      "Greedy"
+    ],
+    [
+      "Heap / Priority Queue",
+      "Graphs"
+    ],
+    [
+      "Backtracking",
+      "Graphs"
+    ],
+    [
+      "Backtracking",
+      "1-D Dynamic Programming"
+    ],
+    [
+      "Graphs",
+      "Advanced Graphs"
+    ],
+    [
+      "Graphs",
+      "2-D Dynamic Programming"
+    ],
+    [
+      "1-D Dynamic Programming",
+      "2-D Dynamic Programming"
+    ],
+    [
+      "1-D Dynamic Programming",
+      "Bit Manipulation"
+    ],
+    [
+      "2-D Dynamic Programming",
+      "Math & Geometry"
+    ],
+    [
+      "Bit Manipulation",
+      "Math & Geometry"
+    ]
+  ]
+}
