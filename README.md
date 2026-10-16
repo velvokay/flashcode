@@ -39,6 +39,7 @@ npm run build
 - A searchable library and a form for adding personal questions.
 - Browser-local persistence with an explicit reset action.
 - Paused sessions reopen at the same question with the same queue for up to 24 hours.
+- Completed sessions are recorded locally so Today can show a daily stopping point and offer optional additional study.
 - Keyboard shortcuts `1`–`3` for recording an outcome.
 
 ## Architecture

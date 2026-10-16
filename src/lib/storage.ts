@@ -16,6 +16,7 @@ export function createInitialData(now = new Date()): AppData {
     drafts: {},
     activePlanId: DEFAULT_PLAN_ID,
     activeSession: null,
+    completedSessions: [],
   };
 }
 
@@ -56,7 +57,15 @@ export function loadData(): AppData {
       new Set(studyPlans.map((plan) => plan.id)),
     );
 
-    return { ...parsed, questions, reviews, drafts: parsed.drafts ?? {}, activePlanId, activeSession };
+    return {
+      ...parsed,
+      questions,
+      reviews,
+      drafts: parsed.drafts ?? {},
+      activePlanId,
+      activeSession,
+      completedSessions: Array.isArray(parsed.completedSessions) ? parsed.completedSessions : [],
+    };
   } catch {
     return createInitialData();
   }

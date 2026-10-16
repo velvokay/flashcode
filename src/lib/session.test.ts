@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createStudySession, normalizeStudySession, SESSION_MAX_AGE_MS } from "./session";
+import {
+  createCompletedStudySession,
+  createStudySession,
+  normalizeStudySession,
+  SESSION_MAX_AGE_MS,
+} from "./session";
 
 const questionIds = new Set(["one", "two", "three"]);
 const planIds = new Set(["plan"]);
@@ -24,6 +29,19 @@ describe("study sessions", () => {
     };
 
     expect(normalizeStudySession(session, questionIds, planIds, now)).toEqual(session);
+  });
+
+  it("records a completed session with its full question count", () => {
+    const session = createStudySession(["one", "two"], "plan", "category", now, "Arrays");
+
+    expect(createCompletedStudySession(session, now)).toEqual({
+      id: `plan-${now.getTime()}`,
+      planId: "plan",
+      kind: "category",
+      category: "Arrays",
+      questionCount: 2,
+      completedAt: now.toISOString(),
+    });
   });
 
   it("rejects a session whose question data has changed", () => {

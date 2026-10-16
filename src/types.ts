@@ -52,6 +52,15 @@ export interface StudySession {
   startedAt: string;
 }
 
+export interface CompletedStudySession {
+  id: string;
+  planId: string;
+  kind: StudySessionKind;
+  category?: string;
+  questionCount: number;
+  completedAt: string;
+}
+
 export interface AppData {
   questions: Question[];
   reviews: Record<string, ReviewState>;
@@ -59,6 +68,7 @@ export interface AppData {
   drafts: Record<string, CodeDraft>;
   activePlanId: string;
   activeSession: StudySession | null;
+  completedSessions: CompletedStudySession[];
 }
 
 export interface StudyPlan {

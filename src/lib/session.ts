@@ -1,4 +1,4 @@
-import type { StudySession, StudySessionKind } from "../types";
+import type { CompletedStudySession, StudySession, StudySessionKind } from "../types";
 
 export const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -16,6 +16,20 @@ export function createStudySession(
     kind,
     category: kind === "category" ? category : undefined,
     startedAt: now.toISOString(),
+  };
+}
+
+export function createCompletedStudySession(
+  session: StudySession,
+  completedAt = new Date(),
+): CompletedStudySession {
+  return {
+    id: `${session.planId}-${completedAt.getTime()}`,
+    planId: session.planId,
+    kind: session.kind,
+    category: session.category,
+    questionCount: session.questionIds.length,
+    completedAt: completedAt.toISOString(),
   };
 }
 

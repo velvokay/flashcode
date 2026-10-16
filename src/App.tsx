@@ -18,7 +18,7 @@ import {
   isStudied,
 } from "./lib/studyPath";
 import { ROADMAP_EDGES, ROADMAP_POSITIONS } from "./lib/roadmap";
-import { createStudySession } from "./lib/session";
+import { createCompletedStudySession, createStudySession } from "./lib/session";
 import type { CategoryProgress } from "./lib/studyPath";
 import type { AppData, Difficulty, Question, Rating, ReviewEvent, StudyPlan, StudySession } from "./types";
 
@@ -195,15 +195,33 @@ function TodayView({
     .sort((a, b) => data.reviews[a.id].dueAt.localeCompare(data.reviews[b.id].dueAt));
   const queueCounts = getQueueCounts(queue, data.reviews);
   const questionIds = new Set(questions.map((question) => question.id));
-  const reviewedToday = data.history.filter((event) => {
-    const date = new Date(event.reviewedAt);
-    return questionIds.has(event.questionId) && date.toDateString() === now.toDateString();
-  }).length;
+  const studiedToday = new Set(
+    data.history
+      .filter((event) => {
+        const date = new Date(event.reviewedAt);
+        return questionIds.has(event.questionId) && date.toDateString() === now.toDateString();
+      })
+      .map((event) => event.questionId),
+  ).size;
+  const completedToday = data.completedSessions.filter(
+    (completed) =>
+      completed.planId === plan.id &&
+      new Date(completed.completedAt).toDateString() === now.toDateString(),
+  );
+  const completedQuestionsToday = completedToday.reduce(
+    (total, completed) => total + completed.questionCount,
+    0,
+  );
   const active = questions.filter((question) => isStudied(data.reviews[question.id])).length;
   const nextDue = questions
     .map((question) => data.reviews[question.id])
     .filter((review) => isStudied(review) && !isDue(review, now))
     .sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0];
+  const completedSessionToday = completedToday.length > 0;
+  const reviewsStillDue = !session && completedSessionToday && allDue.length > 0;
+  const todayComplete = !session && completedSessionToday && allDue.length === 0;
+  const completedSessionLabel = `${completedToday.length} ${completedToday.length === 1 ? "session" : "sessions"}`;
+  const completedQuestionLabel = `${completedQuestionsToday} ${completedQuestionsToday === 1 ? "question" : "questions"}`;
 
   return (
     <main className="page-shell today-page">
@@ -221,13 +239,20 @@ function TodayView({
         </div>
         <div className="hero-content">
           <h1>
-            {queue.length > 0
-              ? session
-                ? `${queue.length} left in session`
-                : `${queue.length} to study`
-              : "You're caught up"}
+            {session
+              ? `${queue.length} left in session`
+              : reviewsStillDue
+                ? `${allDue.length} ${allDue.length === 1 ? "review" : "reviews"} still due`
+                : todayComplete
+                  ? "Today complete"
+                  : queue.length > 0
+                    ? `${queue.length} to study`
+                    : "You're caught up"}
           </h1>
-          {queue.length === 0 && (
+          {todayComplete && (
+            <p className="completion-summary">{completedSessionLabel}, {completedQuestionLabel}</p>
+          )}
+          {queue.length === 0 && !todayComplete && (
             <p className="lede">
               {nextDue
                 ? `Next review ${formatDueDate(nextDue.dueAt, now).toLowerCase()}.`
@@ -235,11 +260,35 @@ function TodayView({
             </p>
           )}
           <div className="hero-action">
-            <button className="primary-button" onClick={onStart} disabled={queue.length === 0}>
-              <span>{queue.length > 0 ? (session ? "Continue" : "Start") : "Nothing scheduled"}</span>
-              {queue.length > 0 && <Icon name="arrow" />}
-            </button>
-            {queue.length > 0 && <span className="time-note">~{Math.max(5, queue.length * 3)} min</span>}
+            {todayComplete ? (
+              <>
+                {queue.length > 0 && (
+                  <button className="secondary-button study-more-button" onClick={onStart}>
+                    <span>Study more</span>
+                    <Icon name="arrow" />
+                  </button>
+                )}
+                {nextDue && (
+                  <span className="time-note">Next review {formatDueDate(nextDue.dueAt, now)}</span>
+                )}
+              </>
+            ) : (
+              <>
+                <button className="primary-button" onClick={onStart} disabled={queue.length === 0}>
+                  <span>
+                    {queue.length > 0
+                      ? session
+                        ? "Continue"
+                        : reviewsStillDue
+                          ? "Continue reviews"
+                          : "Start"
+                      : "Nothing scheduled"}
+                  </span>
+                  {queue.length > 0 && <Icon name="arrow" />}
+                </button>
+                {queue.length > 0 && <span className="time-note">~{Math.max(5, queue.length * 3)} min</span>}
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -248,11 +297,11 @@ function TodayView({
         <div className="metrics-row">
           <Metric value={allDue.length} label="Due" />
           <Metric value={active} label="Attempted" />
-          <Metric value={reviewedToday} label="Reviews today" />
+          <Metric value={studiedToday} label="Studied today" />
         </div>
       </section>
 
-      <section className="queue-section">
+      {!todayComplete && <section className="queue-section">
         <div className="section-heading">
           <h2>{queue.length > 0 ? "Up next" : "Questions"}</h2>
           <div className="section-count queue-counts">
@@ -265,19 +314,29 @@ function TodayView({
           </div>
         </div>
         <div className="question-list">
-          {(queue.length > 0 ? queue : questions.slice(0, SESSION_LIMIT)).map((question) => (
-            <div className="question-row" key={question.id}>
-              <div className="question-primary">
-                <h3>{question.title}</h3>
+          {(queue.length > 0 ? queue : questions.slice(0, SESSION_LIMIT)).map((question) => {
+            const review = data.reviews[question.id];
+            const reviewDue = queue.length > 0 && isStudied(review) && isDue(review, now);
+
+            return (
+              <div className={`question-row ${queue.length > 0 ? "has-status" : ""}`} key={question.id}>
+                <div className="question-primary">
+                  <h3>{question.title}</h3>
+                </div>
+                <span className="topic-label">{question.topic}</span>
+                {queue.length > 0 && (
+                  <span className={`queue-status ${reviewDue ? "queue-status-review" : "queue-status-new"}`}>
+                    {reviewDue ? "Review due" : "New"}
+                  </span>
+                )}
+                <span className={`difficulty difficulty-${question.difficulty.toLowerCase()}`}>
+                  {question.difficulty}
+                </span>
               </div>
-              <span className="topic-label">{question.topic}</span>
-              <span className={`difficulty difficulty-${question.difficulty.toLowerCase()}`}>
-                {question.difficulty}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </section>
+      </section>}
     </main>
   );
 }
@@ -1206,14 +1265,20 @@ export default function App() {
 
     setData((current) => {
       const nextState = applyRating(current.reviews[questionId], rating, reviewedAt);
-      const activeSession = current.activeSession
-        ? nextIndex >= current.activeSession.questionIds.length
-          ? null
-          : { ...current.activeSession, currentIndex: nextIndex }
+      const completedSession = current.activeSession && nextIndex >= current.activeSession.questionIds.length
+        ? createCompletedStudySession(current.activeSession, reviewedAt)
         : null;
+      const activeSession = completedSession
+        ? null
+        : current.activeSession
+          ? { ...current.activeSession, currentIndex: nextIndex }
+          : null;
       return {
         ...current,
         activeSession,
+        completedSessions: completedSession
+          ? [...current.completedSessions, completedSession]
+          : current.completedSessions,
         reviews: { ...current.reviews, [questionId]: nextState },
         history: [
           ...current.history,
