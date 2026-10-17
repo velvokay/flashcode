@@ -1,0 +1,40 @@
+:root {
+  background: #fff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+main {
+  min-height: 100vh;
+}
+
+.not-found-link {
+  position: relative;
+  display: block;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.not-found-link img {
+  position: absolute;
+  top: 0;
+  left: calc(50% + 98px);
+  width: 1470px;
+  height: 956px;
+  max-width: none;
+  transform: translateX(-50%);
+}
+
+.not-found-link:focus-visible {
+  outline: 3px solid #111;
+  outline-offset: -6px;
+}

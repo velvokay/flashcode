@@ -62,6 +62,21 @@ describe("Flashcode backups", () => {
     );
   });
 
+  it("rejects unsafe links in imported questions", () => {
+    const backup = JSON.parse(createBackup(createInitialData(now), now));
+    backup.data.questions[0].url = "javascript:alert(1)";
+
+    expect(() => parseBackup(JSON.stringify(backup), now)).toThrow(
+      "incomplete or damaged",
+    );
+  });
+
+  it("rejects unreasonably large backups before parsing", () => {
+    expect(() => parseBackup(" ".repeat(5 * 1024 * 1024 + 1), now)).toThrow(
+      "too large",
+    );
+  });
+
   it("loads the legacy v1 storage format", () => {
     const legacy = createInitialData(now);
     legacy.activePlanId = "blind-75";
