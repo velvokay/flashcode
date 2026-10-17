@@ -149,8 +149,23 @@ a { color: inherit; }
 .settings-menu h2 { margin: 0 0 8px; font-size: 17px; }
 .settings-menu > p,
 .settings-confirm > p { margin: 0 0 20px; color: var(--ink-muted); font-size: 13px; line-height: 19px; }
-.settings-menu > .quiet-button { padding-left: 0; }
+.settings-actions { display: grid; margin: 0 -8px; }
+.settings-actions .quiet-button { min-height: 36px; text-align: left; }
+.hidden-file-input { display: none; }
+.settings-reset {
+  width: 100%;
+  margin-top: 12px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  text-align: left;
+}
+.settings-message { margin: 16px 0 0 !important; }
+.settings-message.error { color: var(--danger); }
+.settings-confirm { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.settings-confirm > p { margin-bottom: 12px; color: var(--ink); }
 .settings-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.settings-confirm .secondary-button { min-height: 36px; padding: 8px 12px; font-size: 14px; }
 
 .page-shell { width: min(calc(100% - 64px), var(--container)); margin: 0 auto; }
 

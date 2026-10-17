@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyRating,
   createReviewState,
@@ -6,7 +6,14 @@ import {
   isDue,
   previewSchedule,
 } from "./lib/scheduler";
-import { clearData, createInitialData, loadData, saveData } from "./lib/storage";
+import {
+  clearData,
+  createBackup,
+  createInitialData,
+  loadData,
+  parseBackup,
+  saveData,
+} from "./lib/storage";
 import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./lib/studyPlans";
 import { dateKey, getDailyReviewCounts, getStreaks } from "./lib/activity";
 import {
@@ -76,13 +83,47 @@ function Mark() {
   );
 }
 
-function Header({ view, onNavigate, onReset }: { view: View; onNavigate: (view: View) => void; onReset: () => void }) {
+function Header({
+  view,
+  onNavigate,
+  onExport,
+  onImport,
+  onReset,
+}: {
+  view: View;
+  onNavigate: (view: View) => void;
+  onExport: () => void;
+  onImport: (data: AppData) => void;
+  onReset: () => void;
+}) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const navigate = (nextView: View) => {
+  const [pendingImport, setPendingImport] = useState<AppData | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const closeSettings = () => {
     setSettingsOpen(false);
     setConfirmReset(false);
+    setPendingImport(null);
+    setImportError(null);
+  };
+  const navigate = (nextView: View) => {
+    closeSettings();
     onNavigate(nextView);
+  };
+  const chooseImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setConfirmReset(false);
+    setImportError(null);
+    try {
+      setPendingImport(parseBackup(await file.text()));
+    } catch (error) {
+      setPendingImport(null);
+      setImportError(error instanceof Error ? error.message : "The backup could not be read.");
+    }
   };
 
   return (
@@ -103,7 +144,10 @@ function Header({ view, onNavigate, onReset }: { view: View; onNavigate: (view: 
           <div className="header-tools">
             <button
               className="settings-button"
-              onClick={() => { setSettingsOpen((value) => !value); setConfirmReset(false); }}
+              onClick={() => {
+                if (settingsOpen) closeSettings();
+                else setSettingsOpen(true);
+              }}
               aria-label="Data settings"
               aria-expanded={settingsOpen}
               aria-controls="data-settings-menu"
@@ -113,10 +157,32 @@ function Header({ view, onNavigate, onReset }: { view: View; onNavigate: (view: 
             {settingsOpen && (
               <section className="settings-menu" id="data-settings-menu" aria-label="Data settings">
                 <h2>Data</h2>
-                <p>Your progress and custom questions are saved in this browser.</p>
-                {!confirmReset ? (
-                  <button className="quiet-button danger-text" onClick={() => setConfirmReset(true)}>Reset app</button>
-                ) : (
+                <p>Your progress stays in this browser. Nothing is sent to a server.</p>
+                <div className="settings-actions">
+                  <button className="quiet-button" onClick={onExport}>Export backup</button>
+                  <button className="quiet-button" onClick={() => importInput.current?.click()}>Import backup</button>
+                  <input
+                    ref={importInput}
+                    className="hidden-file-input"
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={chooseImport}
+                  />
+                </div>
+                {importError && <p className="settings-message error" role="alert">{importError}</p>}
+                {pendingImport && (
+                  <div className="settings-confirm">
+                    <p>Replace current data with this backup?</p>
+                    <div>
+                      <button className="quiet-button" onClick={() => setPendingImport(null)}>Cancel</button>
+                      <button className="secondary-button" onClick={() => { onImport(pendingImport); closeSettings(); }}>Import</button>
+                    </div>
+                  </div>
+                )}
+                {!pendingImport && !confirmReset && (
+                  <button className="quiet-button danger-text settings-reset" onClick={() => { setConfirmReset(true); setImportError(null); }}>Reset app</button>
+                )}
+                {confirmReset && (
                   <div className="settings-confirm">
                     <p>Delete all progress and custom questions?</p>
                     <div>
@@ -1436,6 +1502,25 @@ export default function App() {
     setStudyMotion(null);
   };
 
+  const exportData = () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(new Blob([createBackup(data)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `flashcode-backup-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
+  const importData = (imported: AppData) => {
+    setData(imported);
+    setQueue(imported.activeSession?.questionIds ?? []);
+    setStudyMotion(null);
+    setView("today");
+  };
+
   const selectPlan = (activePlanId: string) => {
     setData((current) => ({ ...current, activePlanId, activeSession: null }));
     setQueue([]);
@@ -1443,7 +1528,13 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header view={view} onNavigate={setView} onReset={reset} />
+      <Header
+        view={view}
+        onNavigate={setView}
+        onExport={exportData}
+        onImport={importData}
+        onReset={reset}
+      />
       {view === "today" && (
         <TodayView
           data={data}
