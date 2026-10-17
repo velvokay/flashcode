@@ -14,6 +14,7 @@ import {
   parseBackup,
   saveData,
 } from "./lib/storage";
+import { isSafeExternalUrl } from "./lib/urls";
 import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./lib/studyPlans";
 import { dateKey, getDailyReviewCounts, getStreaks } from "./lib/activity";
 import {
@@ -1209,6 +1210,14 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
     const prompt = String(form.get("prompt") ?? "").trim();
     const approach = String(form.get("approach") ?? "").trim();
     if (!title || !url || !prompt || !approach) return;
+    const urlInput = event.currentTarget.elements.namedItem("url");
+    if (!isSafeExternalUrl(url)) {
+      if (urlInput instanceof HTMLInputElement) {
+        urlInput.setCustomValidity("Enter a secure link beginning with https://");
+        urlInput.reportValidity();
+      }
+      return;
+    }
 
     const complexity = String(form.get("complexity") ?? "").trim();
     if (!complexity) return;
@@ -1239,7 +1248,15 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
         </label>
         <label>
           <span>LeetCode link</span>
-          <input name="url" required type="url" placeholder="https://…" />
+          <input
+            name="url"
+            required
+            type="url"
+            inputMode="url"
+            pattern="https://.*"
+            placeholder="https://…"
+            onInput={(event) => event.currentTarget.setCustomValidity("")}
+          />
         </label>
         <label>
           <span>Topic</span>

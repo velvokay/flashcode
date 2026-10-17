@@ -3,10 +3,12 @@ import { DEFAULT_PLAN_ID, studyPlans } from "./studyPlans";
 import type { AppData, ReviewState } from "../types";
 import { createReviewState, migrateLegacyReviewState } from "./scheduler";
 import { normalizeStudySession } from "./session";
+import { isSafeExternalUrl } from "./urls";
 
 const STORAGE_KEY = "flashcode:data";
 const LEGACY_STORAGE_KEYS = ["flashcode:data:v1"];
 export const STORAGE_SCHEMA_VERSION = 1;
+export const MAX_BACKUP_CHARACTERS = 5 * 1024 * 1024;
 
 interface StorageEnvelope {
   product: "flashcode";
@@ -23,6 +25,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isValidQuestion(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.topic === "string" &&
+    (value.difficulty === "Easy" || value.difficulty === "Medium" || value.difficulty === "Hard") &&
+    typeof value.url === "string" &&
+    isSafeExternalUrl(value.url) &&
+    typeof value.prompt === "string" &&
+    Array.isArray(value.approach) &&
+    value.approach.every((step) => typeof step === "string") &&
+    typeof value.complexity === "string" &&
+    typeof value.builtIn === "boolean" &&
+    typeof value.createdAt === "string"
+  );
+}
+
 function unwrapStoredData(value: unknown): unknown {
   if (!isRecord(value) || !("schemaVersion" in value)) return value;
   if (value.product !== "flashcode") return null;
@@ -35,6 +55,7 @@ function normalizeAppData(value: unknown, now = new Date()): AppData | null {
   if (!Array.isArray(value.questions) || !isRecord(value.reviews) || !Array.isArray(value.history)) {
     return null;
   }
+  if (!value.questions.every(isValidQuestion)) return null;
 
   const parsed = value as unknown as AppData;
   const seedByUrl = new Map(seedQuestions.map((question) => [question.url, question]));
@@ -129,6 +150,10 @@ export function createBackup(data: AppData, now = new Date()): string {
 }
 
 export function parseBackup(raw: string, now = new Date()): AppData {
+  if (raw.length > MAX_BACKUP_CHARACTERS) {
+    throw new Error("This backup is too large to import.");
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
