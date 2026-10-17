@@ -133,6 +133,7 @@ Components should feel native to the same family.
 
 - Use a small, deliberate set of corner radii.
 - Use shared radius tokens rather than assigning one-off corner values. Keep full-width structural regions and continuous lists square when rounding would imply a separate card.
+- Selected rounded components must read as one complete shape. Use a full border, surface change, or clear indicator instead of a one-sided inset outline.
 - Keep buttons, inputs, menus, and cards internally consistent.
 - Prefer flat surfaces and subtle separators when possible.
 - Use cards only when grouping or interaction justifies them.

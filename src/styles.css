@@ -331,7 +331,6 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
   text-align: left;
   align-items: center;
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--rating-color);
   border-radius: var(--radius-control);
   background: var(--surface);
   padding: 10px 12px;
@@ -348,7 +347,6 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 .rating-button.selected {
   border-color: var(--rating-color);
   background: color-mix(in srgb, var(--rating-color) 8%, var(--surface));
-  box-shadow: inset 3px 0 var(--rating-color);
 }
 .rating-key {
   grid-row: 1 / span 2;
@@ -608,7 +606,11 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
   border-color: var(--ink);
   transform: translate(-50%, calc(-50% - 2px));
 }
-.roadmap-node.current { border-color: var(--signal); box-shadow: inset 3px 0 var(--signal); }
+.roadmap-node.current {
+  border: 2px solid var(--signal);
+  padding: 11px;
+  box-shadow: none;
+}
 .roadmap-node.updated { animation: roadmap-node-update 900ms var(--ease) both; }
 .roadmap-node.updated .readiness-bar > span,
 .category-row.updated .readiness-bar > span {
@@ -739,7 +741,7 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 }
 @keyframes roadmap-node-update {
   0%, 100% { border-color: var(--rule); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent); }
-  35% { border-color: var(--signal); box-shadow: inset 3px 0 var(--signal); }
+  35% { border-color: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
 }
 @keyframes readiness-update {
   from { transform: scaleX(0); }
@@ -824,7 +826,10 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 .sidebar-plan-options button:last-child { border-bottom: 0; }
 .sidebar-plan-options button:hover,
 .sidebar-plan-options button:focus-visible { background: var(--surface-subtle); }
-.sidebar-plan-options button.selected { box-shadow: inset 3px 0 var(--signal); }
+.sidebar-plan-options button.selected {
+  background: var(--surface-subtle);
+  color: var(--signal-strong);
+}
 .sidebar-plan-options span { font-size: 13px; font-weight: 500; }
 .sidebar-plan-options small { color: var(--ink-muted); font-size: 10px; white-space: nowrap; }
 .progress-total { display: flex; align-items: baseline; gap: 8px; margin: 28px 0 20px; }
