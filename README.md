@@ -9,7 +9,7 @@ Included plans:
 - Starter 10
 - My questions
 
-Progress is stored locally and carries over when a question appears in more than one plan.
+Progress is stored locally and carries over when a question appears in more than one plan. It can be exported as a JSON backup and restored in another browser.
 
 ## Run locally
 
@@ -38,7 +38,7 @@ npm run build
 - Clear outcomes: `Couldn't solve`, `Needed help`, and `Solved independently`.
 - Independent solves return after 4 days, then 10 days, then roughly 2.3 times the previous interval. Assisted solves return the next day without advancing that sequence.
 - A searchable library and a form for adding personal questions.
-- Browser-local persistence with an explicit reset action.
+- Versioned browser-local persistence with backup, restore, and reset actions.
 - Paused sessions reopen at the same question with the same queue for up to 24 hours.
 - Completed sessions are recorded locally so Today can show a daily stopping point and offer optional additional study.
 - Keyboard shortcuts `1`–`3` for recording an outcome.
@@ -59,3 +59,9 @@ npm run build
 Ten questions currently include curated summaries and key steps. The rest use LeetCode as the problem surface and retain complete scheduling metadata in the catalog; no problem statements are scraped or mirrored.
 
 The visual system is defined in `BRAND.md`, with universal interface requirements in `AGENTS.md` and `DESIGN.md`.
+
+## Deployment
+
+The initial production architecture is a static Cloudflare Pages deployment with no backend or account requirement. Build with `npm run build` and publish `dist`.
+
+See `DEPLOYMENT.md` for the current launch checklist, Cloudflare configuration, storage boundaries, and the deferred Worker/D1 path.
