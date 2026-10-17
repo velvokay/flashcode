@@ -92,6 +92,7 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 - Full-width rules, tables, list rows, and surfaces attached flush to a viewport edge remain square. Do not add rounding where there is no visible outer corner.
 - Do not use pill shapes except for true binary or status tokens.
 - Borders are 1px neutral rules. Selected or focused states use a 2px signal edge or a clearly visible focus outline.
+- On bounded, rounded components, selection must affect the complete perimeter or the complete surface. Never use a one-sided inset stripe that follows only the left corners.
 - The flashcard is not a floating novelty object. It is a stable work surface anchored to the page grid.
 
 ### Composition
