@@ -50,6 +50,7 @@ describe("study plans", () => {
   });
 
   it("defines a valid default plan and roadmap category for every built-in question", () => {
+    expect(DEFAULT_PLAN_ID).toBe("neetcode-150");
     expect(studyPlans.some((plan) => plan.id === DEFAULT_PLAN_ID)).toBe(true);
 
     const catalogTopics = new Set(seedQuestions.map((question) => question.topic));

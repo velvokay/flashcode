@@ -25,6 +25,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Flashcode backups", () => {
+  it("starts new users on NeetCode 150", () => {
+    expect(createInitialData(now).activePlanId).toBe("neetcode-150");
+    expect(loadData(now).activePlanId).toBe("neetcode-150");
+  });
+
   it("round-trips current application data", () => {
     const original = createInitialData(now);
     const restored = parseBackup(createBackup(original, now), now);
