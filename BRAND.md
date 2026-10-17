@@ -88,7 +88,9 @@ The palette is warm-neutral and ink-like, with one unmistakable signal color. Co
 
 - Use a **2px route line** as the recurring structural element. It may become 3px in large editorial moments.
 - Use circular station markers in exactly three states: 8px inactive dot, 12px current ring, 12px completed solid dot.
-- Default corner radii: 0 for structural regions and tables, 8px for compact controls, 12px for the primary study surface. Do not use pill shapes except for true binary/status tokens or keyboard keys.
+- Corner radii use three tokens only: 4px for small indicators and keyboard keys, 8px for controls, inputs, and menus, and 12px for bounded panels and cards such as the study surface, sidebar panels, and roadmap nodes.
+- Full-width rules, tables, list rows, and surfaces attached flush to a viewport edge remain square. Do not add rounding where there is no visible outer corner.
+- Do not use pill shapes except for true binary or status tokens.
 - Borders are 1px neutral rules. Selected or focused states use a 2px signal edge or a clearly visible focus outline.
 - The flashcard is not a floating novelty object. It is a stable work surface anchored to the page grid.
 

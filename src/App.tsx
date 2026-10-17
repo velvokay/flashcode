@@ -38,13 +38,15 @@ const ratingLabels: Record<Rating, string> = {
 
 const SESSION_LIMIT = 10;
 
-function Icon({ name, size = 18 }: { name: "arrow" | "back" | "external" | "plus" | "search" | "x"; size?: number }) {
+function Icon({ name, size = 18 }: { name: "arrow" | "back" | "chevron" | "external" | "plus" | "search" | "settings" | "x"; size?: number }) {
   const paths = {
     arrow: <path d="m13 5 7 7-7 7M20 12H4" />,
     back: <path d="m11 5-7 7 7 7M4 12h16" />,
+    chevron: <path d="m7 9 5 5 5-5" />,
     external: <path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
+    settings: <><path d="M4 7h4M12 7h8M4 17h8M16 17h4" /><circle cx="10" cy="7" r="2" /><circle cx="14" cy="17" r="2" /></>,
     x: <path d="m6 6 12 12M18 6 6 18" />,
   };
 
@@ -74,42 +76,70 @@ function Mark() {
   );
 }
 
-function Header({ view, onNavigate }: { view: View; onNavigate: (view: View) => void }) {
+function Header({ view, onNavigate, onReset }: { view: View; onNavigate: (view: View) => void; onReset: () => void }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const navigate = (nextView: View) => {
+    setSettingsOpen(false);
+    setConfirmReset(false);
+    onNavigate(nextView);
+  };
+
   return (
     <header className="site-header">
-      <button className="wordmark" onClick={() => onNavigate("today")} aria-label="Flashcode home">
-        <Mark />
-        <span>flashcode</span>
-      </button>
       {view !== "review" ? (
-        <nav className="main-nav" aria-label="Primary navigation">
-          <button
-            className={view === "today" ? "active" : ""}
-            onClick={() => onNavigate("today")}
-            aria-current={view === "today" ? "page" : undefined}
-          >
-            Today
-          </button>
-          <button
-            className={view === "roadmap" ? "active" : ""}
-            onClick={() => onNavigate("roadmap")}
-            aria-current={view === "roadmap" ? "page" : undefined}
-          >
-            Roadmap
-          </button>
-          <button
-            className={view === "library" ? "active" : ""}
-            onClick={() => onNavigate("library")}
-            aria-current={view === "library" ? "page" : undefined}
-          >
-            Library
-          </button>
-        </nav>
+        <>
+          <div className="header-primary">
+            <button className="wordmark" onClick={() => navigate("today")} aria-label="Flashcode home">
+              <Mark />
+              <span>flashcode</span>
+            </button>
+            <nav className="main-nav" aria-label="Primary navigation">
+              <button className={view === "today" ? "active" : ""} onClick={() => navigate("today")} aria-current={view === "today" ? "page" : undefined}>Today</button>
+              <button className={view === "roadmap" ? "active" : ""} onClick={() => navigate("roadmap")} aria-current={view === "roadmap" ? "page" : undefined}>Roadmap</button>
+              <button className={view === "library" ? "active" : ""} onClick={() => navigate("library")} aria-current={view === "library" ? "page" : undefined}>Library</button>
+            </nav>
+          </div>
+          <div className="header-tools">
+            <button
+              className="settings-button"
+              onClick={() => { setSettingsOpen((value) => !value); setConfirmReset(false); }}
+              aria-label="Data settings"
+              aria-expanded={settingsOpen}
+              aria-controls="data-settings-menu"
+            >
+              <Icon name="settings" size={18} />
+            </button>
+            {settingsOpen && (
+              <section className="settings-menu" id="data-settings-menu" aria-label="Data settings">
+                <h2>Data</h2>
+                <p>Your progress and custom questions are saved in this browser.</p>
+                {!confirmReset ? (
+                  <button className="quiet-button danger-text" onClick={() => setConfirmReset(true)}>Reset app</button>
+                ) : (
+                  <div className="settings-confirm">
+                    <p>Delete all progress and custom questions?</p>
+                    <div>
+                      <button className="quiet-button" onClick={() => setConfirmReset(false)}>Cancel</button>
+                      <button className="danger-button" onClick={() => { onReset(); setSettingsOpen(false); setConfirmReset(false); }}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        </>
       ) : (
-        <button className="quiet-button back-to-today" onClick={() => onNavigate("today")}>
-          <Icon name="back" size={16} />
-          <span>Today</span>
-        </button>
+        <>
+          <button className="wordmark" onClick={() => navigate("today")} aria-label="Flashcode home">
+            <Mark />
+            <span>flashcode</span>
+          </button>
+          <button className="quiet-button back-to-today" onClick={() => navigate("today")}>
+            <Icon name="back" size={16} />
+            <span>Today</span>
+          </button>
+        </>
       )}
     </header>
   );
@@ -178,16 +208,20 @@ function TodayView({
   questions,
   queue,
   session,
+  activityMonth,
+  onActivityMonthChange,
+  onSelectPlan,
   onStart,
-  onChoosePlan,
 }: {
   data: AppData;
   plan: StudyPlan;
   questions: Question[];
   queue: Question[];
   session: StudySession | null;
+  activityMonth: Date;
+  onActivityMonthChange: (month: Date) => void;
+  onSelectPlan: (planId: string) => void;
   onStart: () => void;
-  onChoosePlan: () => void;
 }) {
   const now = new Date();
   const allDue = questions
@@ -225,16 +259,10 @@ function TodayView({
 
   return (
     <main className="page-shell today-page">
+      <div className="standard-page-layout">
+        <div className="standard-page-main">
       <section className="today-hero">
         <div className="today-heading-row">
-          <button
-            className="plan-context"
-            onClick={onChoosePlan}
-            aria-label={`Open ${plan.name} roadmap`}
-          >
-            <strong>{plan.name}</strong>
-            <Icon name="arrow" size={15} />
-          </button>
           <time>{now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</time>
         </div>
         <div className="hero-content">
@@ -337,6 +365,16 @@ function TodayView({
           })}
         </div>
       </section>}
+        </div>
+        <StudySidebar
+          data={data}
+          plan={plan}
+          questions={questions}
+          activityMonth={activityMonth}
+          onActivityMonthChange={onActivityMonthChange}
+          onSelectPlan={onSelectPlan}
+        />
+      </div>
     </main>
   );
 }
@@ -558,9 +596,18 @@ function CategoryDetails({
   );
 }
 
-function ActivityPanel({ history, highlightDate }: { history: ReviewEvent[]; highlightDate?: string }) {
+function ActivityPanel({
+  history,
+  visibleMonth,
+  onMonthChange,
+  highlightDate,
+}: {
+  history: ReviewEvent[];
+  visibleMonth: Date;
+  onMonthChange: (month: Date) => void;
+  highlightDate?: string;
+}) {
   const now = new Date();
-  const [visibleMonth, setVisibleMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const counts = useMemo(() => getDailyReviewCounts(history), [history]);
   const streaks = useMemo(() => getStreaks(history, now), [history]);
   const year = visibleMonth.getFullYear();
@@ -585,13 +632,12 @@ function ActivityPanel({ history, highlightDate }: { history: ReviewEvent[]; hig
   };
 
   return (
-    <aside className="activity-panel" aria-label="Study activity">
+    <section className="activity-panel sidebar-panel" aria-label="Study activity">
       <div className="activity-heading">
-        <h2>Activity</h2>
         <div className="month-controls">
           <button
             className="icon-button previous-month"
-            onClick={() => setVisibleMonth(new Date(year, month - 1, 1))}
+            onClick={() => onMonthChange(new Date(year, month - 1, 1))}
             aria-label="Previous month"
           >
             <Icon name="arrow" size={16} />
@@ -599,7 +645,7 @@ function ActivityPanel({ history, highlightDate }: { history: ReviewEvent[]; hig
           <strong>{monthLabel}</strong>
           <button
             className="icon-button"
-            onClick={() => setVisibleMonth(new Date(year, month + 1, 1))}
+            onClick={() => onMonthChange(new Date(year, month + 1, 1))}
             aria-label="Next month"
           >
             <Icon name="arrow" size={16} />
@@ -635,6 +681,105 @@ function ActivityPanel({ history, highlightDate }: { history: ReviewEvent[]; hig
         <div><strong>{streaks.longest}</strong><span>Longest streak</span></div>
       </div>
       <p className="streak-note">A study day includes at least one rated question.</p>
+    </section>
+  );
+}
+
+function PlanProgressPanel({
+  data,
+  plan,
+  questions,
+  onSelectPlan,
+}: {
+  data: AppData;
+  plan: StudyPlan;
+  questions: Question[];
+  onSelectPlan: (planId: string) => void;
+}) {
+  const [choosingPlan, setChoosingPlan] = useState(false);
+  const progress = getCategoryProgress(questions, data.reviews, new Date());
+  const attempted = progress.reduce((sum, category) => sum + category.studied, 0);
+  const current = progress.reduce((sum, category) => sum + category.current, 0);
+  const due = progress.reduce((sum, category) => sum + category.due, 0);
+  const newCount = progress.reduce((sum, category) => sum + category.newCount, 0);
+
+  return (
+    <section className="progress-panel sidebar-panel" aria-label={`${plan.name} progress`}>
+      <button
+        className="plan-select-button"
+        onClick={() => setChoosingPlan((value) => !value)}
+        aria-expanded={choosingPlan}
+        aria-controls="sidebar-plan-options"
+      >
+        <strong>{plan.name}</strong>
+        <Icon name="chevron" size={16} />
+      </button>
+      {choosingPlan && (
+        <div className="sidebar-plan-options" id="sidebar-plan-options" role="listbox" aria-label="Study plan">
+          {studyPlans.map((option) => {
+            const optionQuestions = getQuestionsForPlan(option.id, data.questions);
+            const optionAttempted = optionQuestions.filter((question) => isStudied(data.reviews[question.id])).length;
+            const selected = option.id === plan.id;
+            return (
+              <button
+                key={option.id}
+                className={selected ? "selected" : ""}
+                onClick={() => {
+                  if (!selected) onSelectPlan(option.id);
+                  setChoosingPlan(false);
+                }}
+                role="option"
+                aria-selected={selected}
+              >
+                <span>{option.name}</span>
+                <small>{optionAttempted} of {optionQuestions.length}</small>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <p className="progress-total">
+        <strong>{attempted}</strong>
+        <span>of {questions.length} attempted</span>
+      </p>
+      <ReadinessBar
+        current={current}
+        due={due}
+        newCount={newCount}
+        total={questions.length}
+        label={`${plan.name} readiness`}
+      />
+      <ReadinessCounts current={current} due={due} newCount={newCount} compact />
+    </section>
+  );
+}
+
+function StudySidebar({
+  data,
+  plan,
+  questions,
+  activityMonth,
+  onActivityMonthChange,
+  onSelectPlan,
+  highlightDate,
+}: {
+  data: AppData;
+  plan: StudyPlan;
+  questions: Question[];
+  activityMonth: Date;
+  onActivityMonthChange: (month: Date) => void;
+  onSelectPlan: (planId: string) => void;
+  highlightDate?: string;
+}) {
+  return (
+    <aside className="study-sidebar" aria-label="Study overview">
+      <PlanProgressPanel data={data} plan={plan} questions={questions} onSelectPlan={onSelectPlan} />
+      <ActivityPanel
+        history={data.history}
+        visibleMonth={activityMonth}
+        onMonthChange={onActivityMonthChange}
+        highlightDate={highlightDate}
+      />
     </aside>
   );
 }
@@ -644,6 +789,8 @@ function RoadmapView({
   plan,
   questions,
   motion,
+  activityMonth,
+  onActivityMonthChange,
   onSelect,
   onStartCategory,
   onMotionComplete,
@@ -652,19 +799,16 @@ function RoadmapView({
   plan: StudyPlan;
   questions: Question[];
   motion: StudyMotion | null;
+  activityMonth: Date;
+  onActivityMonthChange: (month: Date) => void;
   onSelect: (planId: string) => void;
   onStartCategory: (category: string) => void;
   onMotionComplete: () => void;
 }) {
-  const [choosingPlan, setChoosingPlan] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const now = new Date();
   const progress = getCategoryProgress(questions, data.reviews, now);
   const currentCategory = getCurrentCategory(questions, data.reviews, now);
-  const totalStudied = progress.reduce((sum, category) => sum + category.studied, 0);
-  const totalCurrent = progress.reduce((sum, category) => sum + category.current, 0);
-  const totalDue = progress.reduce((sum, category) => sum + category.due, 0);
-  const totalNew = progress.reduce((sum, category) => sum + category.newCount, 0);
   const canShowGraph = progress.length >= 10 && progress.every((category) => ROADMAP_POSITIONS[category.name]);
   const selectedProgress = progress.find((category) => category.name === selectedCategory);
   const selectedQuestions = selectedCategory
@@ -680,54 +824,6 @@ function RoadmapView({
   return (
     <>
     <main className="page-shell path-page">
-      <section className="path-heading">
-        <div>
-          <span className="path-kicker">Roadmap</span>
-          <h1>{plan.name}</h1>
-          <p>{totalStudied} of {questions.length} attempted</p>
-        </div>
-        <button className="secondary-button" onClick={() => setChoosingPlan((value) => !value)}>
-          {choosingPlan ? "Close" : "Change plan"}
-        </button>
-      </section>
-
-      <section className="plan-readiness" aria-label="Plan readiness">
-        <ReadinessBar
-          current={totalCurrent}
-          due={totalDue}
-          newCount={totalNew}
-          total={questions.length}
-          label={`${plan.name} readiness`}
-        />
-        <ReadinessCounts current={totalCurrent} due={totalDue} newCount={totalNew} />
-      </section>
-
-      {choosingPlan && (
-        <section className="plan-picker" aria-label="Available study plans">
-          {studyPlans.map((option) => {
-            const planQuestions = getQuestionsForPlan(option.id, data.questions);
-            const attempted = planQuestions.filter((question) => isStudied(data.reviews[question.id])).length;
-            const selected = option.id === data.activePlanId;
-
-            return (
-              <article className={`plan-option ${selected ? "selected" : ""}`} key={option.id}>
-                <div>
-                  <h2>{option.name}</h2>
-                  <span>{attempted} of {planQuestions.length} attempted</span>
-                </div>
-                <button
-                  className={selected ? "selected-plan-button" : "quiet-plan-button"}
-                  onClick={() => { onSelect(option.id); setChoosingPlan(false); setSelectedCategory(null); }}
-                  disabled={selected}
-                >
-                  {selected ? "Current" : "Select"}
-                </button>
-              </article>
-            );
-          })}
-        </section>
-      )}
-
       <div className={`roadmap-layout ${canShowGraph ? "has-graph" : ""}`}>
         <div className="roadmap-content">
           {canShowGraph ? (
@@ -756,7 +852,15 @@ function RoadmapView({
             />
           )}
         </div>
-        <ActivityPanel history={data.history} highlightDate={motion?.calendarDate} />
+        <StudySidebar
+          data={data}
+          plan={plan}
+          questions={questions}
+          activityMonth={activityMonth}
+          onActivityMonthChange={onActivityMonthChange}
+          onSelectPlan={(planId) => { onSelect(planId); setSelectedCategory(null); }}
+          highlightDate={motion?.calendarDate}
+        />
       </div>
     </main>
     {selectedProgress && (
@@ -1108,20 +1212,23 @@ function LibraryView({
   data,
   plan,
   questions,
+  activityMonth,
+  onActivityMonthChange,
+  onSelectPlan,
   onAdd,
   onRemove,
-  onReset,
 }: {
   data: AppData;
   plan: StudyPlan;
   questions: Question[];
+  activityMonth: Date;
+  onActivityMonthChange: (month: Date) => void;
+  onSelectPlan: (planId: string) => void;
   onAdd: (question: Question) => void;
   onRemove: (id: string) => void;
-  onReset: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return questions;
@@ -1132,6 +1239,8 @@ function LibraryView({
 
   return (
     <main className="page-shell library-page">
+      <div className="standard-page-layout">
+        <div className="standard-page-main">
       <section className="library-heading">
         <div>
           <h1>{plan.name}</h1>
@@ -1172,21 +1281,16 @@ function LibraryView({
         })}
       </div>
 
-      <section className="data-settings">
-        <div>
-          <h2>Data</h2>
-          <p>Saved in this browser. Resetting deletes your progress and custom questions.</p>
         </div>
-        {!confirmReset ? (
-          <button className="quiet-button danger-text" onClick={() => setConfirmReset(true)}>Reset app</button>
-        ) : (
-          <div className="confirm-actions">
-            <span>Delete progress and custom questions?</span>
-            <button className="quiet-button" onClick={() => setConfirmReset(false)}>Cancel</button>
-            <button className="danger-button" onClick={() => { onReset(); setConfirmReset(false); }}>Delete</button>
-          </div>
-        )}
-      </section>
+        <StudySidebar
+          data={data}
+          plan={plan}
+          questions={questions}
+          activityMonth={activityMonth}
+          onActivityMonthChange={onActivityMonthChange}
+          onSelectPlan={onSelectPlan}
+        />
+      </div>
     </main>
   );
 }
@@ -1196,6 +1300,10 @@ export default function App() {
   const [view, setView] = useState<View>("today");
   const [queue, setQueue] = useState<string[]>(() => data.activeSession?.questionIds ?? []);
   const [studyMotion, setStudyMotion] = useState<StudyMotion | null>(null);
+  const [activityMonth, setActivityMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const activePlan = getStudyPlan(data.activePlanId);
   const activeQuestions = useMemo(
     () => getQuestionsForPlan(data.activePlanId, data.questions),
@@ -1328,9 +1436,14 @@ export default function App() {
     setStudyMotion(null);
   };
 
+  const selectPlan = (activePlanId: string) => {
+    setData((current) => ({ ...current, activePlanId, activeSession: null }));
+    setQueue([]);
+  };
+
   return (
     <div className="app">
-      <Header view={view} onNavigate={setView} />
+      <Header view={view} onNavigate={setView} onReset={reset} />
       {view === "today" && (
         <TodayView
           data={data}
@@ -1338,8 +1451,10 @@ export default function App() {
           questions={activeQuestions}
           queue={displayedQueue}
           session={data.activeSession}
+          activityMonth={activityMonth}
+          onActivityMonthChange={setActivityMonth}
+          onSelectPlan={selectPlan}
           onStart={startReview}
-          onChoosePlan={() => setView("roadmap")}
         />
       )}
       {view === "roadmap" && (
@@ -1348,10 +1463,9 @@ export default function App() {
           plan={activePlan}
           questions={activeQuestions}
           motion={studyMotion}
-          onSelect={(activePlanId) => {
-            setData((current) => ({ ...current, activePlanId, activeSession: null }));
-            setQueue([]);
-          }}
+          activityMonth={activityMonth}
+          onActivityMonthChange={setActivityMonth}
+          onSelect={selectPlan}
           onStartCategory={startCategory}
           onMotionComplete={() => setStudyMotion(null)}
         />
@@ -1361,13 +1475,15 @@ export default function App() {
           data={data}
           plan={activePlan}
           questions={activeQuestions}
+          activityMonth={activityMonth}
+          onActivityMonthChange={setActivityMonth}
+          onSelectPlan={selectPlan}
           onAdd={(question) => {
             addQuestion(question);
             setData((current) => ({ ...current, activePlanId: "personal", activeSession: null }));
             setQueue([]);
           }}
           onRemove={removeQuestion}
-          onReset={reset}
         />
       )}
       {view === "review" && (

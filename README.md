@@ -33,6 +33,7 @@ npm run build
 - Sessions capped at ten questions: due reviews first, then new questions from the next category in the path.
 - A branching roadmap with real readiness data and focused category sessions.
 - A review-history calendar with current and longest study streaks.
+- A consistent plan-progress and activity sidebar across Today, Roadmap, and Library.
 - Direct LeetCode links.
 - Clear outcomes: `Couldn't solve`, `Needed help`, and `Solved independently`.
 - Independent solves return after 4 days, then 10 days, then roughly 2.3 times the previous interval. Assisted solves return the next day without advancing that sequence.

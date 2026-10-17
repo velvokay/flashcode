@@ -132,6 +132,7 @@ These values are starting points, not a requirement to imitate Apple's branding.
 Components should feel native to the same family.
 
 - Use a small, deliberate set of corner radii.
+- Use shared radius tokens rather than assigning one-off corner values. Keep full-width structural regions and continuous lists square when rounding would imply a separate card.
 - Keep buttons, inputs, menus, and cards internally consistent.
 - Prefer flat surfaces and subtle separators when possible.
 - Use cards only when grouping or interaction justifies them.
