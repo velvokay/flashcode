@@ -7,6 +7,7 @@ import {
   saveData,
   STORAGE_SCHEMA_VERSION,
 } from "./storage";
+import { seedQuestions } from "./catalog";
 
 const now = new Date("2026-10-17T12:00:00.000Z");
 let values: Map<string, string>;
@@ -83,6 +84,22 @@ describe("Flashcode backups", () => {
     values.set("flashcode:data:v1", JSON.stringify(legacy));
 
     expect(loadData(now).activePlanId).toBe("blind-75");
+  });
+
+  it("refreshes built-in content by stable ID without losing progress", () => {
+    const stored = structuredClone(createInitialData(now));
+    const questionId = stored.questions[0].id;
+    stored.questions[0].url = "https://leetcode.com/problems/contains-duplicate/";
+    stored.questions[0].prompt = "Old provider-specific prompt";
+    stored.reviews[questionId].repetitions = 4;
+    values.set("flashcode:data:v1", JSON.stringify(stored));
+
+    const loaded = loadData(now);
+
+    expect(loaded.questions).toHaveLength(seedQuestions.length);
+    expect(loaded.questions[0].url).toBe(seedQuestions[0].url);
+    expect(loaded.questions[0].prompt).toBe(seedQuestions[0].prompt);
+    expect(loaded.reviews[questionId].repetitions).toBe(4);
   });
 
   it("saves application data inside the versioned storage envelope", () => {
