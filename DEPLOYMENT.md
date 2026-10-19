@@ -55,7 +55,7 @@ Pull requests should receive preview deployments. Preview URLs have independent 
 - [ ] Complete and rate a problem, refresh, close the browser, and confirm progress remains.
 - [ ] Deploy a harmless follow-up commit and confirm existing production progress remains.
 - [x] Export a backup, reset in a test browser, import it, and confirm reviews, history, plans, custom questions, and the active session return.
-- [ ] Confirm direct LeetCode links open correctly.
+- [ ] Confirm direct problem links open correctly.
 - [ ] Confirm unknown and sensitive-looking paths return the 404 page without exposing files.
 - [ ] Confirm mobile, keyboard, and reduced-motion behavior.
 

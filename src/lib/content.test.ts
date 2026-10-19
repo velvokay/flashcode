@@ -12,7 +12,7 @@ describe("study plans", () => {
       expect(question.id).not.toBe("");
       expect(question.title).not.toBe("");
       expect(question.topic).not.toBe("");
-      expect(question.url).toMatch(/^https:\/\/leetcode\.com\/problems\//);
+      expect(question.url).toMatch(/^https:\/\/neetcode\.io\/problems\/.+\/question\?list=neetcode150$/);
       expect(question.prompt).not.toBe("");
       expect(Array.isArray(question.approach)).toBe(true);
       expect(typeof question.complexity).toBe("string");

@@ -650,7 +650,7 @@ function CategoryDetails({
                     {review && !isDue(review, now) && <span>Next review {formatDueDate(review.dueAt, now).toLowerCase()}</span>}
                   </div>
                   <span className={`difficulty difficulty-${question.difficulty.toLowerCase()}`}>{question.difficulty}</span>
-                  <a href={question.url} target="_blank" rel="noreferrer" aria-label={`Open ${question.title} on LeetCode`}>
+                  <a href={question.url} target="_blank" rel="noreferrer" aria-label={`Open ${question.title}`}>
                     <Icon name="external" size={17} />
                   </a>
                 </article>
@@ -1116,7 +1116,7 @@ function ReviewSession({
             </div>
             <div className="problem-action">
               <a className="primary-button" href={question.url} target="_blank" rel="noreferrer">
-                Open on LeetCode <Icon name="external" size={16} />
+                Open problem <Icon name="external" size={16} />
               </a>
               <button
                 className="secondary-button"
@@ -1247,7 +1247,7 @@ function AddQuestionForm({ onAdd, onCancel }: { onAdd: (question: Question) => v
           <input name="title" required placeholder="Course Schedule" />
         </label>
         <label>
-          <span>LeetCode link</span>
+          <span>Problem link</span>
           <input
             name="url"
             required

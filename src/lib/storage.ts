@@ -58,15 +58,15 @@ function normalizeAppData(value: unknown, now = new Date()): AppData | null {
   if (!value.questions.every(isValidQuestion)) return null;
 
   const parsed = value as unknown as AppData;
-  const seedByUrl = new Map(seedQuestions.map((question) => [question.url, question]));
+  const seedById = new Map(seedQuestions.map((question) => [question.id, question]));
   const storedQuestions = parsed.questions.map((question) => {
-    const seed = seedByUrl.get(question.url);
-    return seed ? { ...seed, id: question.id } : question;
+    const seed = seedById.get(question.id);
+    return seed ?? question;
   });
-  const storedUrls = new Set(storedQuestions.map((question) => question.url));
+  const storedIds = new Set(storedQuestions.map((question) => question.id));
   const questions = [
     ...storedQuestions,
-    ...seedQuestions.filter((question) => !storedUrls.has(question.url)),
+    ...seedQuestions.filter((question) => !storedIds.has(question.id)),
   ];
   const reviews = { ...(parsed.reviews as Record<string, ReviewState>) };
   for (const question of questions) {

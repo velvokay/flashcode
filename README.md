@@ -1,6 +1,6 @@
 # Flashcode
 
-Spaced repetition for coding interview questions. Choose a plan, solve on LeetCode, and record how it went.
+Spaced repetition for coding interview questions. Choose a plan, solve on the linked problem site, and record how it went.
 
 Included plans:
 
@@ -34,7 +34,7 @@ npm run build
 - A branching roadmap with real readiness data and focused category sessions.
 - A review-history calendar with current and longest study streaks.
 - A consistent plan-progress and activity sidebar across Today, Roadmap, and Library.
-- Direct LeetCode links.
+- Direct problem links, with NeetCode links for the built-in NeetCode 150 catalog.
 - Clear outcomes: `Couldn't solve`, `Needed help`, and `Solved independently`.
 - Independent solves return after 4 days, then 10 days, then roughly 2.3 times the previous interval. Assisted solves return the next day without advancing that sequence.
 - A searchable library and a form for adding personal questions.
@@ -56,7 +56,7 @@ npm run build
 - Category order, graph connections, and layout live in `src/data/roadmaps/neetcode150.json`.
 - `src/data` contains datasets only. Loading, validation, selection, scheduling, persistence, and other application logic live in `src/lib`.
 
-Ten questions currently include curated summaries and key steps. The rest use LeetCode as the problem surface and retain complete scheduling metadata in the catalog; no problem statements are scraped or mirrored.
+Ten questions currently include curated summaries and key steps. The rest use NeetCode as the problem surface and retain complete scheduling metadata in the catalog; no problem statements are scraped or mirrored.
 
 The visual system is defined in `BRAND.md`, with universal interface requirements in `AGENTS.md` and `DESIGN.md`.
 
