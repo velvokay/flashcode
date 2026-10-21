@@ -1,10 +1,12 @@
 import type { Rating, ReviewState } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const AGAIN_DELAY_MS = 8 * 60 * 1000;
-const FIRST_GOOD_INTERVAL_DAYS = 4;
-const SECOND_GOOD_INTERVAL_DAYS = 10;
-const MAX_GOOD_MULTIPLIER = 2.3;
+const AGAIN_INTERVAL_DAYS = 2;
+const FIRST_HARD_INTERVAL_DAYS = 4;
+const FIRST_GOOD_INTERVAL_DAYS = 7;
+const SECOND_GOOD_INTERVAL_DAYS = 21;
+const HARD_INTERVAL_MULTIPLIER = 0.6;
+const MAX_GOOD_MULTIPLIER = 2;
 
 export interface SchedulePreview {
   label: string;
@@ -23,16 +25,22 @@ export function previewSchedule(
 ): SchedulePreview {
   if (rating === "again") {
     return {
-      label: "8 min",
-      dueAt: new Date(now.getTime() + AGAIN_DELAY_MS),
-      intervalDays: 0,
+      label: `${AGAIN_INTERVAL_DAYS} days`,
+      dueAt: new Date(now.getTime() + AGAIN_INTERVAL_DAYS * DAY_MS),
+      intervalDays: AGAIN_INTERVAL_DAYS,
     };
   }
 
   let intervalDays: number;
 
   if (rating === "hard") {
-    intervalDays = state.repetitions === 0 ? 1 : roundedDays(state.intervalDays * 1.2);
+    intervalDays =
+      state.repetitions === 0
+        ? FIRST_HARD_INTERVAL_DAYS
+        : Math.max(
+            FIRST_HARD_INTERVAL_DAYS,
+            roundedDays(state.intervalDays * HARD_INTERVAL_MULTIPLIER),
+          );
   } else {
     if (state.repetitions === 0) intervalDays = FIRST_GOOD_INTERVAL_DAYS;
     else if (state.repetitions === 1) intervalDays = SECOND_GOOD_INTERVAL_DAYS;
@@ -59,7 +67,7 @@ export function applyRating(
     ...state,
     dueAt: preview.dueAt.toISOString(),
     intervalDays: preview.intervalDays,
-    ease: Math.max(1.3, state.ease + (failed ? -0.2 : 0)),
+    ease: Math.max(1.3, state.ease + (failed ? -0.2 : assisted ? -0.1 : 0)),
     repetitions: failed ? 0 : assisted ? state.repetitions : state.repetitions + 1,
     lapses: state.lapses + (failed ? 1 : 0),
     lastReviewedAt: now.toISOString(),
@@ -70,8 +78,20 @@ export function migrateLegacyReviewState(state: ReviewState): ReviewState {
   if (!state.lastReviewedAt) return state;
 
   let intervalDays: number | null = null;
-  if (state.repetitions === 1 && state.intervalDays === 2) intervalDays = FIRST_GOOD_INTERVAL_DAYS;
-  if (state.repetitions === 2 && state.intervalDays === 4) intervalDays = SECOND_GOOD_INTERVAL_DAYS;
+  if (state.repetitions === 0 && state.intervalDays === 0) intervalDays = AGAIN_INTERVAL_DAYS;
+  if (state.repetitions === 0 && state.intervalDays === 1) intervalDays = FIRST_HARD_INTERVAL_DAYS;
+  if (
+    state.repetitions === 1 &&
+    (state.intervalDays === 2 || state.intervalDays === 4)
+  ) {
+    intervalDays = FIRST_GOOD_INTERVAL_DAYS;
+  }
+  if (
+    state.repetitions === 2 &&
+    (state.intervalDays === 4 || state.intervalDays === 10)
+  ) {
+    intervalDays = SECOND_GOOD_INTERVAL_DAYS;
+  }
   if (intervalDays === null) return state;
 
   return {

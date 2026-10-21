@@ -36,7 +36,7 @@ npm run build
 - A consistent plan-progress and activity sidebar across Today, Roadmap, and Library.
 - Direct problem links, with NeetCode links for the built-in NeetCode 150 catalog.
 - Clear outcomes: `Couldn't solve`, `Needed help`, and `Solved independently`.
-- Independent solves return after 4 days, then 10 days, then roughly 2.3 times the previous interval. Assisted solves return the next day without advancing that sequence.
+- Problems you could not solve return after 2 days, while assisted solves return after 4 days. Independent solves return after 7 days, then 21 days, then roughly double their interval. Assisted solves do not advance mastery and shorten established intervals.
 - A searchable library and a form for adding personal questions.
 - Versioned browser-local persistence with backup, restore, and reset actions.
 - Paused sessions reopen at the same question with the same queue for up to 24 hours.
