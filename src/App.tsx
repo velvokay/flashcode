@@ -16,7 +16,13 @@ import {
 } from "./lib/storage";
 import { isSafeExternalUrl } from "./lib/urls";
 import { getQuestionsForPlan, getStudyPlan, studyPlans } from "./lib/studyPlans";
-import { dateKey, getDailyReviewCounts, getStreaks } from "./lib/activity";
+import {
+  dateKey,
+  getDailyReviewCounts,
+  getReviewedQuestionIdsByDay,
+  getScheduledQuestionIdsByDay,
+  getStreaks,
+} from "./lib/activity";
 import {
   buildCategoryQueue,
   buildStudyQueue,
@@ -665,18 +671,38 @@ function CategoryDetails({
 
 function ActivityPanel({
   history,
+  questions,
+  reviews,
   visibleMonth,
   onMonthChange,
   highlightDate,
 }: {
   history: ReviewEvent[];
+  questions: Question[];
+  reviews: AppData["reviews"];
   visibleMonth: Date;
   onMonthChange: (month: Date) => void;
   highlightDate?: string;
 }) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const now = new Date();
+  const today = dateKey(now);
   const counts = useMemo(() => getDailyReviewCounts(history), [history]);
   const streaks = useMemo(() => getStreaks(history, now), [history]);
+  const questionIds = useMemo(() => questions.map((question) => question.id), [questions]);
+  const questionById = useMemo(
+    () => new Map(questions.map((question) => [question.id, question])),
+    [questions],
+  );
+  const reviewedByDay = useMemo(
+    () => getReviewedQuestionIdsByDay(history, questionIds),
+    [history, questionIds],
+  );
+  const scheduledByDay = useMemo(
+    () => getScheduledQuestionIdsByDay(reviews, questionIds, now),
+    [reviews, questionIds, today],
+  );
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
   const leadingDays = new Date(year, month, 1).getDay();
@@ -698,13 +724,35 @@ function ActivityPanel({
     return 4;
   };
 
+  useEffect(() => {
+    const closePopover = (event: MouseEvent) => {
+      if (panelRef.current?.contains(event.target as Node)) return;
+      setSelectedDay(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedDay(null);
+    };
+
+    document.addEventListener("mousedown", closePopover);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closePopover);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  const changeMonth = (nextMonth: Date) => {
+    setSelectedDay(null);
+    onMonthChange(nextMonth);
+  };
+
   return (
-    <section className="activity-panel sidebar-panel" aria-label="Study activity">
+    <section className="activity-panel sidebar-panel" aria-label="Study activity" ref={panelRef}>
       <div className="activity-heading">
         <div className="month-controls">
           <button
             className="icon-button previous-month"
-            onClick={() => onMonthChange(new Date(year, month - 1, 1))}
+            onClick={() => changeMonth(new Date(year, month - 1, 1))}
             aria-label="Previous month"
           >
             <Icon name="arrow" size={16} />
@@ -712,7 +760,7 @@ function ActivityPanel({
           <strong>{monthLabel}</strong>
           <button
             className="icon-button"
-            onClick={() => onMonthChange(new Date(year, month + 1, 1))}
+            onClick={() => changeMonth(new Date(year, month + 1, 1))}
             aria-label="Next month"
           >
             <Icon name="arrow" size={16} />
@@ -726,18 +774,68 @@ function ActivityPanel({
       <div className="activity-calendar" role="grid" aria-label={monthLabel}>
         {calendarCells.map((day, index) => {
           if (day === null) return <span className="calendar-blank" key={`blank-${index}`} aria-hidden="true" />;
-          const count = counts.get(dayKey(day)) ?? 0;
-          const highlighted = dayKey(day) === highlightDate;
+          const key = dayKey(day);
+          const count = counts.get(key) ?? 0;
+          const dueQuestionIds = key >= today ? scheduledByDay.get(key) ?? [] : [];
+          const reviewedQuestionIds = key < today ? reviewedByDay.get(key) ?? [] : [];
+          const detailQuestionIds = key < today ? reviewedQuestionIds : dueQuestionIds;
+          const detailQuestions = detailQuestionIds
+            .map((questionId) => questionById.get(questionId))
+            .filter((question): question is Question => Boolean(question))
+            .sort((left, right) => left.title.localeCompare(right.title));
+          const selected = selectedDay === key;
+          const highlighted = key === highlightDate;
           const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+          const cellIndex = leadingDays + day - 1;
+          const column = cellIndex % 7;
+          const firstRow = cellIndex < 7;
+          const popoverPosition = `${column < 2 ? "align-left" : column > 4 ? "align-right" : "align-center"} ${firstRow ? "place-below" : "place-above"}`;
+          const date = new Date(year, month, day);
+          const dateLabel = date.toLocaleDateString(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          });
+          const dueCount = dueQuestionIds.length;
+          const accessibleSummary = key < today
+            ? `${count} ${count === 1 ? "review" : "reviews"}`
+            : `${dueCount} due for review`;
+          const popoverId = `calendar-details-${key}`;
           return (
-            <span
-              key={day}
-              className={`calendar-day intensity-${intensity(count)} ${isToday ? "today" : ""} ${highlighted ? "first-review" : ""}`}
-              title={`${count} ${count === 1 ? "review" : "reviews"}`}
-              role="gridcell"
-              aria-label={`${visibleMonth.toLocaleDateString(undefined, { month: "long" })} ${day}: ${count} ${count === 1 ? "review" : "reviews"}`}
-            >
-              {day}
+            <span className={`calendar-cell ${selected ? "is-selected" : ""}`} key={day} role="presentation">
+              <button
+                type="button"
+                className={`calendar-day intensity-${intensity(count)} ${isToday ? "today" : ""} ${highlighted ? "first-review" : ""}`}
+                title={accessibleSummary}
+                role="gridcell"
+                aria-label={`${dateLabel}: ${accessibleSummary}`}
+                aria-expanded={selected}
+                aria-controls={selected ? popoverId : undefined}
+                onClick={() => setSelectedDay((current) => current === key ? null : key)}
+              >
+                {day}
+                {dueCount > 0 && <span className="calendar-due-dot" aria-hidden="true" />}
+              </button>
+              {selected && (
+                <div
+                  className={`calendar-popover ${popoverPosition}`}
+                  id={popoverId}
+                  role="dialog"
+                  aria-label={`Details for ${dateLabel}`}
+                >
+                  <strong>{dateLabel}</strong>
+                  <span className="calendar-popover-label">
+                    {key < today ? "Reviewed" : isToday ? "Due today" : "Due for review"}
+                  </span>
+                  {detailQuestions.length > 0 ? (
+                    <ul>
+                      {detailQuestions.map((question) => <li key={question.id}>{question.title}</li>)}
+                    </ul>
+                  ) : (
+                    <p>{key < today ? "No problems reviewed." : "Nothing due."}</p>
+                  )}
+                </div>
+              )}
             </span>
           );
         })}
@@ -843,6 +941,8 @@ function StudySidebar({
       <PlanProgressPanel data={data} plan={plan} questions={questions} onSelectPlan={onSelectPlan} />
       <ActivityPanel
         history={data.history}
+        questions={questions}
+        reviews={data.reviews}
         visibleMonth={activityMonth}
         onMonthChange={onActivityMonthChange}
         highlightDate={highlightDate}
