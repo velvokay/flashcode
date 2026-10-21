@@ -1,4 +1,4 @@
-import type { ReviewEvent } from "../types";
+import type { ReviewEvent, ReviewState } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,6 +16,46 @@ export function getDailyReviewCounts(history: ReviewEvent[]): Map<string, number
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+export function getReviewedQuestionIdsByDay(
+  history: ReviewEvent[],
+  questionIds: Iterable<string>,
+): Map<string, string[]> {
+  const included = new Set(questionIds);
+  const byDay = new Map<string, Set<string>>();
+
+  for (const event of history) {
+    if (!included.has(event.questionId)) continue;
+    const key = dateKey(new Date(event.reviewedAt));
+    const questions = byDay.get(key) ?? new Set<string>();
+    questions.add(event.questionId);
+    byDay.set(key, questions);
+  }
+
+  return new Map(
+    Array.from(byDay, ([key, questions]) => [key, Array.from(questions)]),
+  );
+}
+
+export function getScheduledQuestionIdsByDay(
+  reviews: Record<string, ReviewState>,
+  questionIds: Iterable<string>,
+  now = new Date(),
+): Map<string, string[]> {
+  const today = dateKey(now);
+  const byDay = new Map<string, string[]>();
+
+  for (const questionId of questionIds) {
+    const review = reviews[questionId];
+    if (!review?.lastReviewedAt) continue;
+
+    const scheduledDay = dateKey(new Date(review.dueAt));
+    const key = scheduledDay < today ? today : scheduledDay;
+    byDay.set(key, [...(byDay.get(key) ?? []), questionId]);
+  }
+
+  return byDay;
 }
 
 function startOfDay(date: Date): Date {
