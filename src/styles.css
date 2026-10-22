@@ -577,12 +577,20 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 
 .roadmap-content { min-width: 0; }
 .roadmap-list-fallback { display: none; }
+.roadmap-map-shell { position: relative; }
 .roadmap-graph { overflow: hidden; }
 .roadmap-canvas {
   position: relative;
   width: 900px;
   height: 1000px;
   margin: 0 auto;
+}
+.roadmap-canvas-content {
+  position: relative;
+  width: 900px;
+  height: 1000px;
+  transform: scale(var(--roadmap-scale, 1));
+  transform-origin: top left;
 }
 .roadmap-connectors {
   position: absolute;
@@ -653,6 +661,7 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 .roadmap-node .readiness-counts.compact strong { font-size: 10px; }
 .roadmap-node .readiness-counts.compact span { gap: 3px; }
 .roadmap-node .readiness-counts.compact span::before { display: none; }
+.roadmap-map-controls { display: none; }
 .roadmap-next {
   position: absolute;
   top: -20px;
@@ -1023,8 +1032,51 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
 }
 
 @media (max-width: 1180px) {
-  .roadmap-graph { display: none; }
-  .roadmap-list-fallback { display: block; }
+  .roadmap-map-shell {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-surface);
+    background: color-mix(in srgb, var(--surface) 52%, var(--canvas));
+    overflow: hidden;
+  }
+  .roadmap-graph {
+    height: min(700px, calc(100svh - 160px));
+    min-height: 520px;
+    overflow: auto;
+    overscroll-behavior: auto;
+    scrollbar-color: var(--rule) transparent;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .roadmap-graph:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+  .roadmap-canvas { margin: 0; }
+  .roadmap-map-controls {
+    position: absolute;
+    z-index: 6;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  .roadmap-map-controls button {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-right: 1px solid var(--rule);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .roadmap-map-controls button:last-child { border-right: 0; }
+  .roadmap-map-controls button:hover:not(:disabled),
+  .roadmap-map-controls button:focus-visible { background: var(--surface-subtle); }
+  .roadmap-map-controls button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--ink); outline-offset: -3px; }
+  .roadmap-map-controls button:disabled { color: var(--rule); cursor: default; }
 }
 
 @media (max-width: 680px) {
@@ -1079,6 +1131,17 @@ kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; fon
   .completion-page { padding: 64px 0; min-height: calc(100vh - 128px); }
   .completion-page h1 { font-size: 48px; }
   .path-page { padding: 48px 0 64px; }
+  .roadmap-map-shell {
+    margin-right: -16px;
+    margin-left: -16px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+  .roadmap-graph {
+    height: min(680px, calc(100svh - 124px));
+    min-height: 500px;
+  }
   .readiness-counts { gap: 12px; }
   .category-row {
     min-height: 0;

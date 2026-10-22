@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyRating,
   createReviewState,
@@ -52,15 +52,17 @@ const ratingLabels: Record<Rating, string> = {
 
 const SESSION_LIMIT = 10;
 
-function Icon({ name, size = 18 }: { name: "arrow" | "back" | "chevron" | "external" | "plus" | "search" | "settings" | "x"; size?: number }) {
+function Icon({ name, size = 18 }: { name: "arrow" | "back" | "chevron" | "external" | "minus" | "plus" | "search" | "settings" | "target" | "x"; size?: number }) {
   const paths = {
     arrow: <path d="m13 5 7 7-7 7M20 12H4" />,
     back: <path d="m11 5-7 7 7 7M4 12h16" />,
     chevron: <path d="m7 9 5 5 5-5" />,
     external: <path d="M14 5h5v5M11 13l8-8M19 13v6H5V5h6" />,
+    minus: <path d="M5 12h14" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
     settings: <><path d="M4 7h4M12 7h8M4 17h8M16 17h4" /><circle cx="10" cy="7" r="2" /><circle cx="14" cy="17" r="2" /></>,
+    target: <><circle cx="12" cy="12" r="6" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></>,
     x: <path d="m6 6 12 12M18 6 6 18" />,
   };
 
@@ -520,12 +522,71 @@ function RoadmapGraph({
   highlightCategory?: string;
   onSelectCategory: (category: string) => void;
 }) {
+  const MAP_WIDTH = 900;
+  const MAP_HEIGHT = 1000;
+  const MIN_SCALE = 0.85;
+  const MAX_SCALE = 1.15;
+  const SCALE_STEP = 0.15;
+  const viewportRef = useRef<HTMLElement>(null);
+  const [mapScale, setMapScale] = useState(1);
   const visibleNames = new Set(progress.map((category) => category.name));
+  const focusCategory = highlightCategory ?? currentCategory ?? progress[0]?.name ?? null;
+
+  const centerCategory = (categoryName: string | null, behavior: ScrollBehavior = "smooth") => {
+    const viewport = viewportRef.current;
+    const position = categoryName ? ROADMAP_POSITIONS[categoryName] : null;
+    if (!viewport || !position) return;
+
+    viewport.scrollTo({
+      left: Math.max(0, position.x * mapScale - viewport.clientWidth / 2),
+      top: Math.max(0, position.y * mapScale - viewport.clientHeight / 2),
+      behavior,
+    });
+  };
+
+  const changeScale = (direction: -1 | 1) => {
+    const viewport = viewportRef.current;
+    const nextScale = Math.min(
+      MAX_SCALE,
+      Math.max(MIN_SCALE, Number((mapScale + direction * SCALE_STEP).toFixed(2))),
+    );
+    if (!viewport || nextScale === mapScale) return;
+
+    const centerX = (viewport.scrollLeft + viewport.clientWidth / 2) / mapScale;
+    const centerY = (viewport.scrollTop + viewport.clientHeight / 2) / mapScale;
+    setMapScale(nextScale);
+    window.requestAnimationFrame(() => {
+      viewport.scrollTo({
+        left: Math.max(0, centerX * nextScale - viewport.clientWidth / 2),
+        top: Math.max(0, centerY * nextScale - viewport.clientHeight / 2),
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 1180px)").matches) return;
+    const frame = window.requestAnimationFrame(() => centerCategory(focusCategory, "auto"));
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusCategory]);
+
+  const canvasStyle = {
+    width: `${MAP_WIDTH * mapScale}px`,
+    height: `${MAP_HEIGHT * mapScale}px`,
+    "--roadmap-scale": mapScale,
+  } as CSSProperties;
 
   return (
-    <section className="roadmap-graph" aria-label="Category roadmap">
-      <div className="roadmap-canvas">
-        <svg className="roadmap-connectors" viewBox="0 0 900 1000" aria-hidden="true">
+    <div className="roadmap-map-shell">
+    <section
+      className="roadmap-graph"
+      id="category-roadmap"
+      aria-label="Category roadmap. Scroll or swipe to explore."
+      ref={viewportRef}
+      tabIndex={0}
+    >
+      <div className="roadmap-canvas" style={canvasStyle}>
+        <div className="roadmap-canvas-content">
+        <svg className="roadmap-connectors" viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} aria-hidden="true">
           {ROADMAP_EDGES.filter(([from, to]) => visibleNames.has(from) && visibleNames.has(to)).map(([from, to]) => {
             const source = ROADMAP_POSITIONS[from];
             const target = ROADMAP_POSITIONS[to];
@@ -571,8 +632,39 @@ function RoadmapGraph({
             </button>
           );
         })}
+        </div>
       </div>
     </section>
+    <div className="roadmap-map-controls" aria-label="Roadmap controls">
+      <button
+        type="button"
+        onClick={() => changeScale(1)}
+        disabled={mapScale >= MAX_SCALE}
+        aria-label="Zoom in"
+        aria-controls="category-roadmap"
+      >
+        <Icon name="plus" size={17} />
+      </button>
+      <button
+        type="button"
+        onClick={() => changeScale(-1)}
+        disabled={mapScale <= MIN_SCALE}
+        aria-label="Zoom out"
+        aria-controls="category-roadmap"
+      >
+        <Icon name="minus" size={17} />
+      </button>
+      <button
+        type="button"
+        onClick={() => centerCategory(focusCategory)}
+        disabled={!focusCategory}
+        aria-label={focusCategory ? `Center ${focusCategory}` : "Center roadmap"}
+        aria-controls="category-roadmap"
+      >
+        <Icon name="target" size={17} />
+      </button>
+    </div>
+    </div>
   );
 }
 

@@ -190,6 +190,7 @@ Do not treat mobile as a compressed desktop layout.
 - Adapt navigation to the available space.
 - Preserve comfortable margins on small screens.
 - Avoid horizontal scrolling except in intentionally scrollable content.
+- Preserve spatial interfaces such as roadmaps on small screens with a clearly bounded, touch-pannable viewport and simple zoom or recenter controls; do not flatten meaningful relationships into a list solely to fit the viewport.
 - Prevent text clipping, overlapping controls, and awkward wrapping.
 - Preserve consistent spacing and component behavior across breakpoints.
 - Consider content length, localization, and larger text settings.
